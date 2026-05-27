@@ -1,4 +1,4 @@
-use crate::{CommonAnimationExt, DiffStat, GradientFade, HighlightedLabel, Tooltip, prelude::*};
+use crate::{CommonAnimationExt, DiffStat, HighlightedLabel, Tooltip, prelude::*};
 
 use gpui::{
     Animation, AnimationExt, ClickEvent, Hsla, MouseButton, SharedString, pulsating_between,
@@ -259,11 +259,7 @@ impl RenderOnce for ThreadItem {
             .blend(color.element_background.opacity(0.2));
         let hover_bg = apparent_bg.blend(hover_color);
 
-        let gradient_overlay = GradientFade::new(base_bg, hover_bg, hover_bg)
-            .width(px(64.0))
-            .right(px(-10.0))
-            .gradient_stop(0.75)
-            .group_name("thread-item");
+
 
         let separator_color = Color::Custom(color.text_muted.opacity(0.4));
         let dot_separator = || {
@@ -336,6 +332,7 @@ impl RenderOnce for ThreadItem {
         } else if self.title_generating {
             Label::new(title)
                 .color(Color::Muted)
+                .truncate()
                 .with_animation(
                     "generating-title",
                     Animation::new(Duration::from_secs(2))
@@ -347,10 +344,12 @@ impl RenderOnce for ThreadItem {
         } else if highlight_positions.is_empty() {
             Label::new(title)
                 .when_some(self.title_label_color, |label, color| label.color(color))
+                .truncate()
                 .into_any_element()
         } else {
             HighlightedLabel::new(title, highlight_positions)
                 .when_some(self.title_label_color, |label, color| label.color(color))
+                .truncate()
                 .into_any_element()
         };
 
@@ -428,26 +427,22 @@ impl RenderOnce for ThreadItem {
                             .min_w_0()
                             .flex_1()
                             .gap_1p5()
+                            .when(self.action_slot.is_some() && self.hovered, |this| {
+                                this.pr(px(56.0))
+                            })
                             .child(icon)
                             .child(title_label),
                     )
-                    .when(self.is_truncated, |this| this.child(gradient_overlay))
                     .when(self.hovered, |this| {
                         this.when_some(self.action_slot, |this, slot| {
-                            let overlay = GradientFade::new(base_bg, hover_bg, hover_bg)
-                                .width(px(80.0))
-                                .right(px(8.))
-                                .gradient_stop(0.80)
-                                .group_name("thread-item");
-
                             this.child(
                                 h_flex()
-                                    .relative()
-                                    .pr_1p5()
+                                    .absolute()
+                                    .right(px(6.0))
+                                    .bg(hover_bg)
                                     .on_mouse_down(MouseButton::Left, |_, _, cx| {
                                         cx.stop_propagation()
                                     })
-                                    .child(overlay)
                                     .child(slot),
                             )
                         })
