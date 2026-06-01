@@ -1,0 +1,279 @@
+name: Sync and Release
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Runs at 00:00 UTC every 3 days
+    - cron: '0 0 */3 * *'
+
+permissions:
+  contents: write
+
+jobs:
+  sync_main:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      should_build: ${{ steps.check_updates.outputs.should_build }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync with upstream main and check for updates
+        id: check_updates
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/zed-industries/zed.git || true
+          git fetch upstream main
+          
+          # Merge updates from upstream
+          git checkout main
+          git merge upstream/main --no-edit
+          
+          # Fetch existing tags from origin
+          git fetch origin --tags || true
+          
+          VERSION=$(script/get-crate-version zed)
+          TAG_SHA=$(git rev-parse "refs/tags/v${VERSION}" 2>/dev/null || echo "")
+          CURRENT_SHA=$(git rev-parse HEAD)
+          
+          SHOULD_BUILD="false"
+          if [ "$TAG_SHA" != "$CURRENT_SHA" ]; then
+            echo "Current commit ($CURRENT_SHA) differs from tag commit ($TAG_SHA) or tag does not exist."
+            SHOULD_BUILD="true"
+            # Push the synced/merged commits to origin main
+            git push https://x-access-token:${GITHUB_TOKEN}@github.com/${REPOSITORY}.git main
+          else
+            echo "Current commit matches existing tag commit. No new changes."
+          fi
+          
+          echo "should_build=${SHOULD_BUILD}" >> "$GITHUB_OUTPUT"
+
+      - name: Get version
+        id: get_version
+        run: |
+          VERSION=$(script/get-crate-version zed)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: sync_main
+    if: needs.sync_main.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64 Stable
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            channel: stable
+            arch: x86_64
+          # Linux x86_64 Preview
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            channel: preview
+            arch: x86_64
+            
+          # macOS ARM64 Stable
+          - os: macos-14
+            target: aarch64-apple-darwin
+            channel: stable
+            arch: aarch64
+          # macOS ARM64 Preview
+          - os: macos-14
+            target: aarch64-apple-darwin
+            channel: preview
+            arch: aarch64
+            
+          # macOS x86_64 Stable
+          - os: macos-13
+            target: x86_64-apple-darwin
+            channel: stable
+            arch: x86_64
+          # macOS x86_64 Preview
+          - os: macos-13
+            target: x86_64-apple-darwin
+            channel: preview
+            arch: x86_64
+
+          # Windows x86_64 Stable
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            channel: stable
+            arch: x86_64
+          # Windows x86_64 Preview
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            channel: preview
+            arch: x86_64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Rust toolchain
+        run: |
+          rustup target add ${{ matrix.target }}
+
+      - name: Set Release Channel
+        env:
+          CHANNEL: ${{ matrix.channel }}
+        shell: bash
+        run: |
+          echo -n "${CHANNEL}" > crates/zed/RELEASE_CHANNEL
+
+      # Linux-specific setup and build
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo ./script/linux
+          ./script/download-wasi-sdk
+      - name: Build Linux bundle
+        if: runner.os == 'Linux'
+        run: |
+          ./script/bundle-linux
+
+      # macOS-specific setup and build
+      - name: Setup Node.js (Mac)
+        if: runner.os == 'macOS'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build macOS bundle
+        if: runner.os == 'macOS'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          ./script/bundle-mac ${TARGET}
+
+      # Windows-specific build
+      - name: Build Windows bundle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CI: "" # Clear CI variable to bypass signing requirements
+          RELEASE_VERSION: ${{ needs.sync_main.outputs.version }}
+          ZED_RELEASE_CHANNEL: ${{ matrix.channel }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          script/bundle-windows.ps1 -Architecture $env:ARCH
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: zed-${{ matrix.channel }}-${{ matrix.target }}
+          path: |
+            target/release/zed-linux-*.tar.gz
+            target/zed-remote-server-linux-*.gz
+            target/*/*.dmg
+            target/zed-remote-server-macos-*.gz
+            target/*.exe
+            target/zed-remote-server-windows-*.zip
+          if-no-files-found: warn
+
+  publish_releases:
+    needs: [sync_main, build]
+    if: needs.sync_main.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p stable-release preview-release
+          
+          # Stable artifacts:
+          cp all-artifacts/zed-stable-*/zed-linux-*.tar.gz stable-release/ 2>/dev/null || true
+          cp all-artifacts/zed-stable-*/Zed-*.dmg stable-release/ 2>/dev/null || true
+          cp all-artifacts/zed-stable-*/Zed-*.exe stable-release/ 2>/dev/null || true
+          cp all-artifacts/zed-stable-*/zed-remote-server-*.gz stable-release/ 2>/dev/null || true
+          cp all-artifacts/zed-stable-*/zed-remote-server-*.zip stable-release/ 2>/dev/null || true
+          
+          # Preview artifacts:
+          cp all-artifacts/zed-preview-*/zed-linux-*.tar.gz preview-release/ 2>/dev/null || true
+          cp all-artifacts/zed-preview-*/Zed-*.dmg preview-release/ 2>/dev/null || true
+          cp all-artifacts/zed-preview-*/Zed-*.exe preview-release/ 2>/dev/null || true
+          cp all-artifacts/zed-preview-*/zed-remote-server-*.gz preview-release/ 2>/dev/null || true
+          cp all-artifacts/zed-preview-*/zed-remote-server-*.zip preview-release/ 2>/dev/null || true
+
+          echo "Organized Stable Files:"
+          ls -l stable-release/ || true
+          echo "Organized Preview Files:"
+          ls -l preview-release/ || true
+
+      - name: Publish Stable Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.sync_main.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [ "$(ls -A stable-release)" ]; then
+            if gh release view "v${VERSION}" --repo "${REPOSITORY}" >/dev/null 2>&1; then
+              echo "Release v${VERSION} already exists. Uploading and replacing assets."
+              gh release upload "v${VERSION}" stable-release/* --repo "${REPOSITORY}" --clobber
+              
+              # Force update tag to point to the built commit
+              git config --global user.name "github-actions[bot]"
+              git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git tag -f "v${VERSION}" HEAD
+              git push https://x-access-token:${GITHUB_TOKEN}@github.com/${REPOSITORY}.git "v${VERSION}" --force
+            else
+              echo "Creating new release v${VERSION}."
+              gh release create "v${VERSION}" \
+                --repo "${REPOSITORY}" \
+                --title "Zed v${VERSION}" \
+                --notes "Build synced with latest Zed ${VERSION} version" \
+                stable-release/*
+            fi
+          else
+            echo "No stable release artifacts found to upload."
+          fi
+
+      - name: Publish Preview Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.sync_main.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [ "$(ls -A preview-release)" ]; then
+            if gh release view "v${VERSION}-pre" --repo "${REPOSITORY}" >/dev/null 2>&1; then
+              echo "Release v${VERSION}-pre already exists. Uploading and replacing assets."
+              gh release upload "v${VERSION}-pre" preview-release/* --repo "${REPOSITORY}" --clobber
+              
+              # Force update tag to point to the built commit
+              git config --global user.name "github-actions[bot]"
+              git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git tag -f "v${VERSION}-pre" HEAD
+              git push https://x-access-token:${GITHUB_TOKEN}@github.com/${REPOSITORY}.git "v${VERSION}-pre" --force
+            else
+              echo "Creating new preview release v${VERSION}-pre."
+              gh release create "v${VERSION}-pre" \
+                --repo "${REPOSITORY}" \
+                --prerelease \
+                --title "Zed Preview v${VERSION}" \
+                --notes "Build synced with latest Zed ${VERSION} version" \
+                preview-release/*
+            fi
+          else
+            echo "No preview release artifacts found to upload."
+          fi
