@@ -3196,6 +3196,9 @@ impl ThreadView {
                 .w_full()
                 .gap_1()
                 .truncate()
+                .when(stats.pending > 0, |this| {
+                    this.pr(px(48.0))
+                })
                 .child(
                     Label::new("Current:")
                         .size(LabelSize::Small)
@@ -3218,11 +3221,6 @@ impl ThreadView {
                             .top_0()
                             .right_0()
                             .h_full()
-                            .child(div().min_w_8().h_full().bg(linear_gradient(
-                                90.,
-                                linear_color_stop(self.activity_bar_bg(cx), 1.),
-                                linear_color_stop(self.activity_bar_bg(cx).opacity(0.2), 0.),
-                            )))
                             .child(
                                 div().pr_0p5().bg(self.activity_bar_bg(cx)).child(
                                     Label::new(format!("{} left", stats.pending))
@@ -3319,6 +3317,7 @@ impl ThreadView {
                                     .id(("plan_entry", index))
                                     .gap_1p5()
                                     .min_w_0()
+                                    .line_clamp(1)
                                     .text_xs()
                                     .text_color(cx.theme().colors().text_muted)
                                     .child(match entry.status {
@@ -3347,13 +3346,6 @@ impl ThreadView {
                                         plan_label_markdown_style(&entry.status, window, cx),
                                     )),
                             )
-                            .child(div().absolute().top_0().right_0().h_full().w_8().bg(
-                                linear_gradient(
-                                    90.,
-                                    linear_color_stop(entry_bg, 1.),
-                                    linear_color_stop(entry_bg.opacity(0.), 0.),
-                                ),
-                            ))
                             .tooltip(Tooltip::text(tooltip_text)),
                     )
                 })),
@@ -7900,33 +7892,6 @@ impl ThreadView {
             .into_any_element()
         };
 
-        let gradient_overlay = {
-            div()
-                .absolute()
-                .top_0()
-                .right_0()
-                .w_12()
-                .h_full()
-                .map(|this| {
-                    if use_card_layout {
-                        this.bg(linear_gradient(
-                            90.,
-                            linear_color_stop(self.tool_card_header_bg(cx), 1.),
-                            linear_color_stop(self.tool_card_header_bg(cx).opacity(0.2), 0.),
-                        ))
-                    } else {
-                        this.bg(linear_gradient(
-                            90.,
-                            linear_color_stop(cx.theme().colors().panel_background, 1.),
-                            linear_color_stop(
-                                cx.theme().colors().panel_background.opacity(0.2),
-                                0.,
-                            ),
-                        ))
-                    }
-                })
-        };
-
         h_flex()
             .relative()
             .w_full()
@@ -7945,6 +7910,7 @@ impl ThreadView {
                 h_flex()
                     .id(("open-tool-call-location", entry_ix))
                     .w_full()
+                    .line_clamp(1)
                     .map(|this| {
                         if use_card_layout {
                             this.text_color(cx.theme().colors().text)
@@ -7971,6 +7937,7 @@ impl ThreadView {
             } else {
                 h_flex()
                     .w_full()
+                    .line_clamp(1)
                     .child(self.render_markdown(
                         tool_call.label.clone(),
                         MarkdownStyle::themed(MarkdownFont::Agent, window, cx).with_muted_text(cx),
@@ -7978,7 +7945,6 @@ impl ThreadView {
                     ))
                     .into_any()
             })
-            .when(!is_edit, |this| this.child(gradient_overlay))
     }
 
     fn open_tool_call_location(
