@@ -183,7 +183,15 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macosx_deployment_target }}
+          # Strip debug info to shrink the __text section below the 128MB
+          # ARM64 branch-range limit, avoiding "B/BL out of range" linker errors.
+          CARGO_PROFILE_RELEASE_DEBUG: "0"
         run: |
+          # Use the classic linker on aarch64 to correctly insert branch islands
+          # for any remaining long-range calls (safety net).
+          if [ "$TARGET" = "aarch64-apple-darwin" ]; then
+            export CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS="-C link-arg=-Wl,-ld_classic"
+          fi
           ./script/bundle-mac ${TARGET}
 
       # Windows-specific build
