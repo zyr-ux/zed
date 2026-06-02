@@ -9,12 +9,16 @@ on:
 permissions:
   contents: write
 
+env:
+  ZED_UPDATE_REPO: ${{ github.repository }}
+
 jobs:
   sync_main:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_version.outputs.version }}
       should_build: ${{ steps.check_updates.outputs.should_build }}
+      upstream_tag: ${{ steps.get_version.outputs.upstream_tag }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -32,7 +36,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add upstream https://github.com/zed-industries/zed.git || true
-          git fetch upstream main
+          git fetch upstream main --tags
           
           # Merge updates from upstream
           git checkout main
@@ -61,7 +65,9 @@ jobs:
         id: get_version
         run: |
           VERSION=$(script/get-crate-version zed)
+          UPSTREAM_TAG=$(git describe --tags --abbrev=0 upstream/main 2>/dev/null || echo "v${VERSION}")
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "upstream_tag=${UPSTREAM_TAG}" >> "$GITHUB_OUTPUT"
 
   build:
     needs: sync_main
@@ -74,6 +80,11 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             arch: x86_64
+
+          # Linux ARM64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            arch: aarch64
             
           # macOS ARM64 (Apple Silicon)
           - os: macos-14
@@ -89,6 +100,11 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             arch: x86_64
+
+          # Windows ARM64
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            arch: aarch64
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -221,6 +237,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.sync_main.outputs.version }}
+          UPSTREAM_TAG: ${{ needs.sync_main.outputs.upstream_tag }}
           REPOSITORY: ${{ github.repository }}
         run: |
           if [ "$(ls -A release-files)" ]; then
@@ -238,7 +255,7 @@ jobs:
               gh release create "v${VERSION}" \
                 --repo "${REPOSITORY}" \
                 --title "Zed v${VERSION}" \
-                --notes "Build synced with latest Zed ${VERSION} version" \
+                --notes "Build synced with the official upstream Zed release. All changes and features from upstream version ${UPSTREAM_TAG} have been successfully applied." \
                 release-files/*
             fi
           else

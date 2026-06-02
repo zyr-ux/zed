@@ -602,6 +602,93 @@ impl AutoUpdater {
     ) -> Result<ReleaseAsset> {
         let client = this.read_with(cx, |this, _| this.client.clone());
 
+        let repo = std::env::var("ZED_UPDATE_REPO")
+            .ok()
+            .unwrap_or_else(|| {
+                option_env!("ZED_UPDATE_REPO")
+                    .unwrap_or("zed-industries/zed")
+                    .to_string()
+            });
+
+        if repo != "zed-industries/zed" {
+            let http_client = client.http_client();
+            let github_release = if let Some(v) = &version {
+                let tag = match release_channel {
+                    ReleaseChannel::Preview => format!("v{}-pre", v),
+                    ReleaseChannel::Nightly => format!("v{}-nightly", v),
+                    _ => format!("v{}", v),
+                };
+                match http_client::github::get_release_by_tag_name(
+                    &repo,
+                    &tag,
+                    http_client.clone() as Arc<dyn HttpClient>,
+                )
+                .await
+                {
+                    Ok(release) => release,
+                    Err(err) => {
+                        let std_tag = format!("v{}", v);
+                        if std_tag != tag {
+                            http_client::github::get_release_by_tag_name(
+                                &repo,
+                                &std_tag,
+                                http_client.clone() as Arc<dyn HttpClient>,
+                            )
+                            .await?
+                        } else {
+                            return Err(err);
+                        }
+                    }
+                }
+            } else {
+                let is_prerelease = matches!(release_channel, ReleaseChannel::Preview | ReleaseChannel::Nightly);
+                http_client::github::latest_github_release(
+                    &repo,
+                    true,
+                    is_prerelease,
+                    http_client.clone() as Arc<dyn HttpClient>,
+                )
+                .await?
+            };
+
+            let expected_asset_name = match asset {
+                "zed" => match os {
+                    "macos" => format!("Zed-{arch}.dmg"),
+                    "linux" => format!("zed-linux-{arch}.tar.gz"),
+                    "windows" => format!("Zed-{arch}.exe"),
+                    _ => anyhow::bail!("unsupported os for github release download: {os}"),
+                },
+                "zed-remote-server" => {
+                    let extension = if os == "windows" { "zip" } else { "gz" };
+                    format!("zed-remote-server-{os}-{arch}.{extension}")
+                }
+                _ => anyhow::bail!("unsupported asset type: {asset}"),
+            };
+
+            let github_asset = github_release
+                .assets
+                .into_iter()
+                .find(|a| a.name == expected_asset_name)
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "failed to find asset '{}' in github release '{}'",
+                        expected_asset_name,
+                        github_release.tag_name
+                    )
+                })?;
+
+            let version_str = github_release
+                .tag_name
+                .strip_prefix('v')
+                .unwrap_or(&github_release.tag_name)
+                .to_string();
+
+            return Ok(ReleaseAsset {
+                version: version_str,
+                url: github_asset.browser_download_url,
+            });
+        }
+
         let (system_id, metrics_id, is_staff) = if client.telemetry().metrics_enabled() {
             (
                 client.telemetry().system_id(),
