@@ -1173,7 +1173,7 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
                                     bounds.size.apply_along(axis.invert(), |_| {
                                         width
                                             + match state.style {
-                                                ScrollbarStyle::Regular => 2 * SCROLLBAR_PADDING,
+                                                ScrollbarStyle::Regular => SCROLLBAR_PADDING,
                                                 ScrollbarStyle::Editor => Pixels::ZERO,
                                             }
                                     }),
@@ -1182,11 +1182,24 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
                                 let has_border =
                                     track_color.is_some_and(|track_colors| track_colors.has_border);
 
-                                // Rounded style needs a bit of padding, whereas for editor scrollbars,
-                                // we want the full length of the track
+                                // Edge-flush style: thumb sits flush against the outer edge
+                                // with padding only on the inner side (toward content)
                                 let thumb_container_bounds = match state.style {
                                     ScrollbarStyle::Regular => {
-                                        scroll_track_bounds.dilate(-SCROLLBAR_PADDING)
+                                        scroll_track_bounds.extend(match axis {
+                                            ScrollbarAxis::Vertical => Edges {
+                                                top: Pixels::ZERO,
+                                                right: Pixels::ZERO,
+                                                bottom: Pixels::ZERO,
+                                                left: -SCROLLBAR_PADDING,
+                                            },
+                                            ScrollbarAxis::Horizontal => Edges {
+                                                top: -SCROLLBAR_PADDING,
+                                                right: Pixels::ZERO,
+                                                bottom: Pixels::ZERO,
+                                                left: Pixels::ZERO,
+                                            },
+                                        })
                                     }
                                     ScrollbarStyle::Editor if has_border => scroll_track_bounds
                                         .extend(match axis {
@@ -1404,8 +1417,7 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
                     window.paint_quad(quad(
                         *thumb_bounds,
                         match style {
-                            ScrollbarStyle::Regular => Corners::all(Pixels::MAX)
-                                .clamp_radii_for_quad_size(thumb_bounds.size),
+                            ScrollbarStyle::Regular => Corners::default(),
                             ScrollbarStyle::Editor => Corners::default(),
                         },
                         thumb_color,

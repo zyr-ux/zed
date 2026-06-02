@@ -89,7 +89,7 @@ use terminal::{Event as TerminalEvent, terminal_settings::TerminalSettings};
 use terminal_view::{TerminalView, terminal_panel::TerminalPanel};
 use theme_settings::ThemeSettings;
 use ui::{
-    Button, ContextMenu, ContextMenuEntry, GradientFade, IconButton, KeyBinding, PopoverMenu,
+    Button, ContextMenu, ContextMenuEntry, IconButton, KeyBinding, PopoverMenu,
     PopoverMenuHandle, ProjectEmptyState, Tab, Tooltip, prelude::*, utils::WithRemSize,
 };
 use util::ResultExt as _;
@@ -5343,12 +5343,6 @@ impl AgentPanel {
             VisibleSurface::Uninitialized => Label::new("Agent").truncate().into_any_element(),
         };
 
-        let toolbar_bg = cx.theme().colors().tab_bar_background;
-        let gradient_overlay = GradientFade::new(toolbar_bg, toolbar_bg, toolbar_bg)
-            .width(px(64.0))
-            .right(px(0.0))
-            .gradient_stop(0.75);
-
         h_flex()
             .key_context("TitleEditor")
             .group("title_editor")
@@ -5357,9 +5351,12 @@ impl AgentPanel {
             .min_w_0()
             .max_w_full()
             .overflow_x_hidden()
+            .when(self.should_show_title_edit(window, cx), |this| {
+                this.pr(px(28.0))
+            })
             .child(content)
             .when(self.should_show_title_edit(window, cx), |this| {
-                this.child(gradient_overlay).child(
+                this.child(
                     h_flex()
                         .visible_on_hover("title_editor")
                         .absolute()
