@@ -90,11 +90,13 @@ jobs:
           - os: macos-14
             target: aarch64-apple-darwin
             arch: aarch64
+            macosx_deployment_target: "11.0"
             
           # macOS x86_64 (Intel)
           - os: macos-13
             target: x86_64-apple-darwin
             arch: x86_64
+            macosx_deployment_target: "10.15.7"
 
           # Windows x86_64
           - os: windows-latest
@@ -144,6 +146,9 @@ jobs:
           ./script/download-wasi-sdk
       - name: Build Linux bundle
         if: runner.os == 'Linux'
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          CC_aarch64_unknown_linux_musl: musl-gcc
         run: |
           ./script/bundle-linux
 
@@ -157,6 +162,7 @@ jobs:
         if: runner.os == 'macOS'
         env:
           TARGET: ${{ matrix.target }}
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macosx_deployment_target }}
         run: |
           ./script/bundle-mac ${TARGET}
 
