@@ -170,6 +170,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake
+      - name: Pin cxx to avoid Xcode 15+ template errors
+        if: runner.os == 'macOS'
+        run: |
+          cargo update -p cxx --precise 1.0.138
       - name: Build macOS bundle
         if: runner.os == 'macOS'
         env:
