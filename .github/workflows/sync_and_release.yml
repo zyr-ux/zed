@@ -3,8 +3,8 @@ name: Sync and Release
 on:
   workflow_dispatch:
   schedule:
-    # Runs at 00:00 UTC every 3 days
-    - cron: '0 0 */3 * *'
+    # Runs at 00:00 UTC everyday
+    - cron: '0 0 * * *'
 
 permissions:
   contents: write
@@ -101,6 +101,9 @@ jobs:
         run: |
           rustup target add ${{ matrix.target }}
 
+      - name: Cache Rust Build
+        uses: swatinem/rust-cache@v2.9.1
+
       - name: Set Release Channel
         shell: bash
         run: |
@@ -131,6 +134,34 @@ jobs:
           ./script/bundle-mac ${TARGET}
 
       # Windows-specific build
+      - name: Link Visual Studio and Windows SDK paths
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          if ($vsPath) {
+            $communityPath = "C:\Program Files\Microsoft Visual Studio\2022\Community"
+            if (-not (Test-Path $communityPath)) {
+              $parentDir = Split-Path $communityPath
+              if (-not (Test-Path $parentDir)) {
+                New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
+              }
+              New-Item -ItemType Junction -Path $communityPath -Value $vsPath | Out-Null
+              Write-Host "Created Junction: $communityPath -> $vsPath"
+            }
+          }
+          $sdkParent = "C:\Program Files (x86)\Windows Kits\10\bin"
+          if (Test-Path $sdkParent) {
+            $expectedPath = Join-Path $sdkParent "10.0.26100.0"
+            if (-not (Test-Path $expectedPath)) {
+              $latest = Get-ChildItem -Path $sdkParent -Filter "10.*" | Where-Object { $_.PSIsContainer } | Sort-Object Name -Descending | Select-Object -First 1
+              if ($latest) {
+                New-Item -ItemType Junction -Path $expectedPath -Value $latest.FullName | Out-Null
+                Write-Host "Linked Windows SDK: $expectedPath -> $($latest.FullName)"
+              }
+            }
+          }
+
       - name: Build Windows bundle
         if: runner.os == 'Windows'
         shell: pwsh
