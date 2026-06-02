@@ -1,9 +1,17 @@
-# Zed
+# Zed - Fork
 
 [![Zed](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/zed-industries/zed/main/assets/badge/v0.json)](https://zed.dev)
 [![CI](https://github.com/zed-industries/zed/actions/workflows/run_tests.yml/badge.svg)](https://github.com/zed-industries/zed/actions/workflows/run_tests.yml)
 
 Welcome to Zed, a high-performance, multiplayer code editor from the creators of [Atom](https://github.com/atom/atom) and [Tree-sitter](https://github.com/tree-sitter/tree-sitter).
+
+---
+### Fork Changes
+- Updated the logos for all release channels
+- Modified the look and feel of the scrollbar in the ui (not the editor)
+- Removed all instances of gradient fade truncation with proper ellipsis(...) truncation
+- Custom Github release builds
+- Updated internal Zed updater to download binaries from the Github releases of this fork
 
 ---
 
