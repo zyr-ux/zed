@@ -100,6 +100,95 @@ fn view_release_notes_locally(
 
     let version = AppVersion::global(cx).to_string();
 
+    let repo = std::env::var("ZED_UPDATE_REPO")
+        .ok()
+        .unwrap_or_else(|| {
+            option_env!("ZED_UPDATE_REPO")
+                .unwrap_or("zed-industries/zed")
+                .to_string()
+        });
+
+    if repo != "zed-industries/zed" {
+        let tag = match release_channel {
+            ReleaseChannel::Preview => format!("v{}-pre", version),
+            ReleaseChannel::Nightly => format!("v{}-nightly", version),
+            _ => format!("v{}", version),
+        };
+        let client = client::Client::global(cx).clone();
+        let markdown = workspace
+            .app_state()
+            .languages
+            .language_for_name("Markdown");
+
+        cx.spawn_in(window, async move |workspace, cx| {
+            let markdown = markdown.await.log_err();
+            let res = auto_update::fetch_github_release_notes(&repo, &tag, client.clone()).await;
+            let notes_res = match res {
+                Ok(notes) => Ok(notes),
+                Err(err) => {
+                    let std_tag = format!("v{}", version);
+                    if std_tag != tag {
+                        auto_update::fetch_github_release_notes(&repo, &std_tag, client).await
+                    } else {
+                        Err(err)
+                    }
+                }
+            };
+
+            let success: Option<()> = maybe!(async {
+                let (title, release_notes) = notes_res.log_err()?;
+                let project = workspace
+                    .read_with(cx, |workspace, _| workspace.project().clone())
+                    .ok()?;
+                let (language_registry, buffer) = project.update(cx, |project, cx| {
+                    (
+                        project.languages().clone(),
+                        project.create_buffer(markdown, false, cx),
+                    )
+                });
+                let buffer = buffer.await.ok()?;
+                buffer.update(cx, |buffer, cx| {
+                    buffer.edit([(0..0, release_notes)], None, cx)
+                });
+
+                let buffer = cx.new(|cx| MultiBuffer::singleton(buffer, cx).with_title(title));
+
+                let ws_handle = workspace.clone();
+                workspace
+                    .update_in(cx, |workspace, window, cx| {
+                        let editor =
+                            cx.new(|cx| Editor::for_multibuffer(buffer, Some(project), window, cx));
+                        let markdown_preview: Entity<MarkdownPreviewView> = MarkdownPreviewView::new(
+                            MarkdownPreviewMode::Default,
+                            editor,
+                            ws_handle,
+                            language_registry,
+                            window,
+                            cx,
+                        );
+                        workspace.add_item_to_active_pane(
+                            Box::new(markdown_preview),
+                            None,
+                            true,
+                            window,
+                            cx,
+                        );
+                        cx.notify();
+                    })
+                    .ok()
+            })
+            .await;
+
+            if success.is_none() {
+                workspace
+                    .update_in(cx, notify_release_notes_failed_to_show)
+                    .log_err();
+            }
+        })
+        .detach();
+        return;
+    }
+
     let client = client::Client::global(cx).http_client();
     let url = client.build_url(&format!(
         "/api/release_notes/v2/{}/{}",

@@ -22,6 +22,7 @@ pub struct GithubRelease {
     pub assets: Vec<GithubReleaseAsset>,
     pub tarball_url: String,
     pub zipball_url: String,
+    pub body: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]

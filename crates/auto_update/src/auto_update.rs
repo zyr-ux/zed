@@ -1245,6 +1245,25 @@ pub async fn finalize_auto_update_on_quit() {
     }
 }
 
+pub async fn fetch_github_release_notes(
+    repo: &str,
+    tag: &str,
+    client: Arc<Client>,
+) -> Result<(String, String)> {
+    let http_client = client.http_client();
+    let release = http_client::github::get_release_by_tag_name(
+        repo,
+        tag,
+        http_client.clone() as Arc<dyn HttpClient>,
+    )
+    .await?;
+
+    Ok((
+        format!("Release {}", release.tag_name),
+        release.body.unwrap_or_default(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use client::Client;
