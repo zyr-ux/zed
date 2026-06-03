@@ -5444,6 +5444,7 @@ impl AgentPanel {
                             }
                         } else {
                             div()
+                                .id("click-to-edit-thread-title")
                                 .flex_grow_1()
                                 .min_w_0()
                                 .w_full()
@@ -5452,7 +5453,8 @@ impl AgentPanel {
                                 .on_click({
                                     let title_editor = title_editor.clone();
                                     move |_, window, cx| {
-                                        title_editor.read(cx).focus_handle(cx).focus(window, cx);
+                                        let focus_handle = title_editor.read(cx).focus_handle(cx);
+                                        window.focus(&focus_handle, cx);
                                     }
                                 })
                                 .into_any_element()
@@ -5543,7 +5545,8 @@ impl AgentPanel {
                                             .root_thread_view()
                                             .map(|r| r.read(cx).title_editor.clone())
                                         {
-                                            title_editor.read(cx).focus_handle(cx).focus(window, cx);
+                                            let focus_handle = title_editor.read(cx).focus_handle(cx);
+                                            window.focus(&focus_handle, cx);
                                         }
                                     } else if let Some(terminal_id) = this.active_terminal_id() {
                                         this.edit_terminal_title(terminal_id, window, cx);
