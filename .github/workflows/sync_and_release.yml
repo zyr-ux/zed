@@ -90,33 +90,45 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             arch: x86_64
+            client_path: target/release/zed-linux-x86_64.tar.gz
+            server_path: target/zed-remote-server-linux-x86_64.gz
 
           # Linux ARM64
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             arch: aarch64
+            client_path: target/release/zed-linux-aarch64.tar.gz
+            server_path: target/zed-remote-server-linux-aarch64.gz
             
           # macOS ARM64 (Apple Silicon)
           - os: macos-15
             target: aarch64-apple-darwin
             arch: aarch64
             macosx_deployment_target: "11.0"
+            client_path: target/aarch64-apple-darwin/release/Zed-aarch64.dmg
+            server_path: target/zed-remote-server-macos-aarch64.gz
             
           # macOS x86_64 (Intel)
           - os: macos-15
             target: x86_64-apple-darwin
             arch: x86_64
             macosx_deployment_target: "10.15.7"
+            client_path: target/x86_64-apple-darwin/release/Zed-x86_64.dmg
+            server_path: target/zed-remote-server-macos-x86_64.gz
 
           # Windows x86_64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             arch: x86_64
+            client_path: target/Zed-x86_64.exe
+            server_path: target/zed-remote-server-windows-x86_64.zip
 
           # Windows ARM64
           - os: windows-latest
             target: aarch64-pc-windows-msvc
             arch: aarch64
+            client_path: target/Zed-aarch64.exe
+            server_path: target/zed-remote-server-windows-aarch64.zip
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -243,18 +255,19 @@ jobs:
         run: |
           script/bundle-windows.ps1 -Architecture $env:ARCH
 
+      - name: Stage Release Artifacts
+        shell: bash
+        run: |
+          mkdir -p release-staging
+          cp "${{ matrix.client_path }}" release-staging/
+          cp "${{ matrix.server_path }}" release-staging/
+
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: zed-${{ matrix.target }}
-          path: |
-            target/release/zed-linux-*.tar.gz
-            target/zed-remote-server-linux-*.gz
-            target/*/*.dmg
-            target/zed-remote-server-macos-*.gz
-            target/*.exe
-            target/zed-remote-server-windows-*.zip
-          if-no-files-found: warn
+          path: release-staging/
+          if-no-files-found: error
 
   publish_releases:
     needs: [sync_main, build]
