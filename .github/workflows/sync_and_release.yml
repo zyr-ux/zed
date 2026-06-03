@@ -179,13 +179,29 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cargo update -p cxx --precise 1.0.138
+      - name: Disable Spotlight indexing
+        if: runner.os == 'macOS'
+        run: |
+          sudo mdutil -a -i off || true
       - name: Build macOS bundle
         if: runner.os == 'macOS'
         env:
           TARGET: ${{ matrix.target }}
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macosx_deployment_target }}
         run: |
-          ./script/bundle-mac ${TARGET}
+          success=false
+          for i in 1 2 3; do
+            if ./script/bundle-mac ${TARGET}; then
+              success=true
+              break
+            fi
+            echo "Attempt $i failed, waiting 10 seconds before retrying..."
+            sleep 10
+          done
+          if [ "$success" = "false" ]; then
+            echo "All compilation and bundling attempts failed."
+            exit 1
+          fi
 
       # Windows-specific build
       - name: Link Visual Studio and Windows SDK paths
