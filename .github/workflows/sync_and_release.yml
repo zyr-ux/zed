@@ -307,10 +307,21 @@ jobs:
           UPSTREAM_TAG: ${{ needs.sync_main.outputs.upstream_tag }}
           REPOSITORY: ${{ github.repository }}
         run: |
+          # Format upstream tag (e.g., v1.5.3-pre -> Zed 1.5.3 Preview)
+          TAG_DISPLAY="${UPSTREAM_TAG#v}"
+          if [[ "$TAG_DISPLAY" == *"-pre" ]]; then
+            TAG_DISPLAY="Zed ${TAG_DISPLAY%-pre} Preview"
+          else
+            TAG_DISPLAY="Zed ${TAG_DISPLAY}"
+          fi
+          
+          RELEASE_NOTES=$(printf -- "- Build synced with the official upstream Zed release.\n- All changes and features from %s have been successfully added." "${TAG_DISPLAY}")
+
           if [ "$(ls -A release-files)" ]; then
             if gh release view "v${VERSION}" --repo "${REPOSITORY}" >/dev/null 2>&1; then
               echo "Release v${VERSION} already exists. Uploading and replacing assets."
               gh release upload "v${VERSION}" release-files/* --repo "${REPOSITORY}" --clobber
+              gh release edit "v${VERSION}" --repo "${REPOSITORY}" --notes "$RELEASE_NOTES"
               
               # Force update tag to point to the built commit
               git config --global user.name "github-actions[bot]"
@@ -322,7 +333,7 @@ jobs:
               gh release create "v${VERSION}" \
                 --repo "${REPOSITORY}" \
                 --title "Zed v${VERSION}" \
-                --notes "Build synced with the official upstream Zed release. All changes and features from upstream version ${UPSTREAM_TAG} have been successfully applied." \
+                --notes "$RELEASE_NOTES" \
                 release-files/*
             fi
           else
