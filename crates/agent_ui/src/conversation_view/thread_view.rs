@@ -8191,6 +8191,7 @@ impl ThreadView {
 
         h_flex()
             .relative()
+            .min_w_0()
             .w_full()
             .h(window.line_height() - px(2.))
             .text_size(self.tool_name_font_size())
@@ -8206,8 +8207,11 @@ impl ThreadView {
             .child(if has_location {
                 h_flex()
                     .id(("open-tool-call-location", entry_ix))
+                    .min_w_0()
                     .w_full()
-                    .line_clamp(1)
+                    .whitespace_nowrap()
+                    .overflow_x_hidden()
+                    .text_ellipsis()
                     .map(|this| {
                         if use_card_layout {
                             this.text_color(cx.theme().colors().text)
@@ -8233,8 +8237,11 @@ impl ThreadView {
                     .into_any_element()
             } else {
                 h_flex()
+                    .min_w_0()
                     .w_full()
-                    .line_clamp(1)
+                    .whitespace_nowrap()
+                    .overflow_x_hidden()
+                    .text_ellipsis()
                     .child(self.render_markdown(
                         tool_call.label.clone(),
                         MarkdownStyle::themed(MarkdownFont::Agent, window, cx).with_muted_text(cx),
