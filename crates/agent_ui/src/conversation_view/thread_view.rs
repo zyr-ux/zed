@@ -8330,15 +8330,11 @@ impl ThreadView {
                         }
                     })
                     .child(
-                        self.render_markdown(
-                            tool_call.label.clone(),
-                            MarkdownStyle {
-                                prevent_mouse_interaction: true,
-                                ..MarkdownStyle::themed(MarkdownFont::Agent, window, cx)
-                                    .with_muted_text(cx)
-                            },
-                            cx,
-                        ),
+                        Label::new(tool_call.label.read(cx).source().clone())
+                            .render_code_spans()
+                            .single_line()
+                            .truncate()
+                            .color(if use_card_layout { Color::Default } else { Color::Muted }),
                     )
                     .tooltip(Tooltip::text("Go to File"))
                     .on_click(cx.listener(move |this, _, window, cx| {
@@ -8352,11 +8348,13 @@ impl ThreadView {
                     .whitespace_nowrap()
                     .overflow_x_hidden()
                     .when(!is_edit, |this| this.text_ellipsis())
-                    .child(self.render_markdown(
-                        tool_call.label.clone(),
-                        MarkdownStyle::themed(MarkdownFont::Agent, window, cx).with_muted_text(cx),
-                        cx,
-                    ))
+                    .child(
+                        Label::new(tool_call.label.read(cx).source().clone())
+                            .render_code_spans()
+                            .single_line()
+                            .color(Color::Muted)
+                            .when(!is_edit, |this| this.truncate()),
+                    )
                     .into_any()
             })
     }
