@@ -8351,7 +8351,7 @@ impl ThreadView {
                     .w_full()
                     .whitespace_nowrap()
                     .overflow_x_hidden()
-                    .text_ellipsis()
+                    .when(!is_edit, |this| this.text_ellipsis())
                     .child(self.render_markdown(
                         tool_call.label.clone(),
                         MarkdownStyle::themed(MarkdownFont::Agent, window, cx).with_muted_text(cx),
