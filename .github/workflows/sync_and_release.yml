@@ -87,13 +87,13 @@ jobs:
             arch: aarch64
             
           # macOS ARM64 (Apple Silicon)
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             arch: aarch64
             macosx_deployment_target: "11.0"
             
           # macOS x86_64 (Intel)
-          - os: macos-14
+          - os: macos-15
             target: x86_64-apple-darwin
             arch: x86_64
             macosx_deployment_target: "10.15.7"
@@ -125,18 +125,6 @@ jobs:
           
           # Enable Windows Long Paths registry setting
           New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
-
-      - name: Select Xcode version
-        if: runner.os == 'macOS'
-        run: |
-          if [ -d "/Applications/Xcode_15.2.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
-          elif [ -d "/Applications/Xcode_15.0.1.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_15.0.1.app/Contents/Developer
-          else
-            echo "Older Xcode version not found, using default."
-          fi
-          xcode-select -p
 
       - name: Setup Rust toolchain
         run: |
@@ -183,15 +171,7 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macosx_deployment_target }}
-          # Strip debug info to shrink the __text section below the 128MB
-          # ARM64 branch-range limit, avoiding "B/BL out of range" linker errors.
-          CARGO_PROFILE_RELEASE_DEBUG: "0"
         run: |
-          # Use the classic linker on aarch64 to correctly insert branch islands
-          # for any remaining long-range calls (safety net).
-          if [ "$TARGET" = "aarch64-apple-darwin" ]; then
-            export CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS="-C link-arg=-Wl,-ld_classic"
-          fi
           ./script/bundle-mac ${TARGET}
 
       # Windows-specific build
