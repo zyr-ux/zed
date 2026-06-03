@@ -46,21 +46,27 @@ jobs:
           git checkout main
           git merge upstream/main --no-edit
           
-          # Fetch existing tags from origin
-          git fetch origin --tags || true
+          # Fetch origin to verify new commits
+          git fetch origin main || true
+          LOCAL_SHA=$(git rev-parse HEAD)
+          ORIGIN_SHA=$(git rev-parse origin/main 2>/dev/null || echo "")
           
-          VERSION=$(script/get-crate-version zed)
-          TAG_SHA=$(git rev-parse "refs/tags/v${VERSION}" 2>/dev/null || echo "")
-          CURRENT_SHA=$(git rev-parse HEAD)
-          
-          SHOULD_BUILD="false"
-          if [ "$TAG_SHA" != "$CURRENT_SHA" ]; then
-            echo "Current commit ($CURRENT_SHA) differs from tag commit ($TAG_SHA) or tag does not exist."
-            SHOULD_BUILD="true"
-            # Push the synced/merged commits to origin main
+          if [ "$LOCAL_SHA" != "$ORIGIN_SHA" ]; then
+            echo "New commits detected. Pushing merged updates to origin main."
             git push https://x-access-token:${GITHUB_TOKEN}@github.com/${REPOSITORY}.git main
           else
-            echo "Current commit matches existing tag commit. No new changes."
+            echo "No new commits to push."
+          fi
+          
+          VERSION=$(script/get-crate-version zed)
+          
+          SHOULD_BUILD="false"
+          # Check if the release for this version already exists in our repository
+          if gh release view "v${VERSION}" --repo "${REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release v${VERSION} already exists in ${REPOSITORY}. Skipping build/release."
+          else
+            echo "Release v${VERSION} does not exist in ${REPOSITORY}. Triggering build/release."
+            SHOULD_BUILD="true"
           fi
           
           echo "should_build=${SHOULD_BUILD}" >> "$GITHUB_OUTPUT"
