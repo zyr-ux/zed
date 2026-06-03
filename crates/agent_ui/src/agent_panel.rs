@@ -5328,49 +5328,66 @@ impl AgentPanel {
                             )
                             .into_any_element()
                     } else {
-                        let editable_title = div()
-                            .flex_1()
-                            .on_action({
-                                let conversation_view = conversation_view.downgrade();
-                                move |_: &menu::Confirm, window, cx| {
-                                    if let Some(conversation_view) = conversation_view.upgrade() {
-                                        conversation_view.focus_handle(cx).focus(window, cx);
+                        let title = server_view_ref.title(cx);
+                        if self.is_title_editor_focused(window, cx) {
+                            let editable_title = div()
+                                .flex_1()
+                                .on_action({
+                                    let conversation_view = conversation_view.downgrade();
+                                    move |_: &menu::Confirm, window, cx| {
+                                        if let Some(conversation_view) = conversation_view.upgrade() {
+                                            conversation_view.focus_handle(cx).focus(window, cx);
+                                        }
                                     }
-                                }
-                            })
-                            .on_action({
-                                let conversation_view = conversation_view.downgrade();
-                                move |_: &editor::actions::Cancel, window, cx| {
-                                    if let Some(conversation_view) = conversation_view.upgrade() {
-                                        conversation_view.focus_handle(cx).focus(window, cx);
+                                })
+                                .on_action({
+                                    let conversation_view = conversation_view.downgrade();
+                                    move |_: &editor::actions::Cancel, window, cx| {
+                                        if let Some(conversation_view) = conversation_view.upgrade() {
+                                            conversation_view.focus_handle(cx).focus(window, cx);
+                                        }
                                     }
-                                }
-                            })
-                            .child(title_editor);
+                                })
+                                .child(title_editor);
 
-                        if title_generation_failed {
-                            h_flex()
-                                .w_full()
-                                .gap_1()
-                                .child(editable_title)
-                                .child(
-                                    IconButton::new("retry-thread-title", IconName::XCircle)
-                                        .icon_color(Color::Error)
-                                        .icon_size(IconSize::Small)
-                                        .tooltip(Tooltip::text("Title generation failed. Retry"))
-                                        .on_click({
-                                            let conversation_view = conversation_view.clone();
-                                            move |_event, _window, cx| {
-                                                Self::handle_regenerate_thread_title(
-                                                    conversation_view.clone(),
-                                                    cx,
-                                                );
-                                            }
-                                        }),
-                                )
-                                .into_any_element()
+                            if title_generation_failed {
+                                h_flex()
+                                    .w_full()
+                                    .gap_1()
+                                    .child(editable_title)
+                                    .child(
+                                        IconButton::new("retry-thread-title", IconName::XCircle)
+                                            .icon_color(Color::Error)
+                                            .icon_size(IconSize::Small)
+                                            .tooltip(Tooltip::text("Title generation failed. Retry"))
+                                            .on_click({
+                                                let conversation_view = conversation_view.clone();
+                                                move |_event, _window, cx| {
+                                                    Self::handle_regenerate_thread_title(
+                                                        conversation_view.clone(),
+                                                        cx,
+                                                    );
+                                                }
+                                            }),
+                                    )
+                                    .into_any_element()
+                            } else {
+                                editable_title.w_full().into_any_element()
+                            }
                         } else {
-                            editable_title.w_full().into_any_element()
+                            div()
+                                .flex_grow_1()
+                                .min_w_0()
+                                .w_full()
+                                .cursor_text()
+                                .child(Label::new(title).color(Color::Muted).truncate())
+                                .on_click({
+                                    let title_editor = title_editor.clone();
+                                    move |_, window, cx| {
+                                        title_editor.read(cx).focus_handle(cx).focus(window, cx);
+                                    }
+                                })
+                                .into_any_element()
                         }
                     }
                 } else {
@@ -5450,7 +5467,20 @@ impl AgentPanel {
                         .child(
                             IconButton::new("edit_tile", IconName::Pencil)
                                 .icon_size(IconSize::Small)
-                                .tooltip(Tooltip::text("Edit Thread Title")),
+                                .tooltip(Tooltip::text("Edit Thread Title"))
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    if let Some(conversation_view) = this.active_conversation_view().cloned() {
+                                        if let Some(title_editor) = conversation_view
+                                            .read(cx)
+                                            .root_thread_view()
+                                            .map(|r| r.read(cx).title_editor.clone())
+                                        {
+                                            title_editor.read(cx).focus_handle(cx).focus(window, cx);
+                                        }
+                                    } else if let Some(terminal_id) = this.active_terminal_id() {
+                                        this.edit_terminal_title(terminal_id, window, cx);
+                                    }
+                                })),
                         ),
                 )
             })
