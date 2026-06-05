@@ -7,6 +7,7 @@ Welcome to Zed, a high-performance, multiplayer code editor from the creators of
 
 ---
 ### Fork Changes
+- Full fork-specific merge and maintenance notes: [`docs/src/fork-changes.md`](./docs/src/fork-changes.md)
 - Updated the logos for all release channels (`crates/zed/resources/`)
 - Modified the look and feel of the scrollbar in the ui (not the editor) ([scrollbar.rs](./crates/ui/src/components/scrollbar.rs))
 - Removed all instances of gradient fade truncation with proper ellipsis(...) truncation ([agent_panel.rs](./crates/agent_ui/src/agent_panel.rs), [sidebar.rs](./crates/sidebar/src/sidebar.rs), [thread_item.rs](./crates/ui/src/components/ai/thread_item.rs), [thread_view.rs](./crates/agent_ui/src/conversation_view/thread_view.rs))

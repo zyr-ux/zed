@@ -186,3 +186,23 @@ Rules emerge from validated patterns, not one-off observations. The workflow is:
 1. Agent notes a pattern during a session.
 2. Team validates the pattern in code review.
 3. A dedicated commit adds the rule with context on *why* it exists.
+
+# Fork-specific changes
+
+This repository contains intentional fork-specific behavior that differs from `upstream/main`.
+
+Before modifying or resolving conflicts in fork-sensitive areas, read `docs/src/fork-changes.md`.
+
+This is especially important for:
+- `.github/workflows/sync_and_release.yml`
+- `crates/auto_update/src/auto_update.rs`
+- `crates/auto_update_ui/src/auto_update_ui.rs`
+- `crates/http_client/src/github.rs`
+- `crates/ui/src/components/scrollbar.rs`
+- `crates/agent_ui/src/agent_panel.rs`
+- `crates/agent_ui/src/conversation_view/thread_view.rs`
+- `crates/sidebar/src/sidebar.rs`
+- `crates/ui/src/components/ai/thread_item.rs`
+- fork branding assets in `crates/zed/resources/`
+
+When a merge conflict or upstream change touches fork-specific behavior, do not assume upstream should win by default. Use `docs/src/fork-changes.md` to understand what changed in the fork, why it changed, and what behavior should be preserved.
