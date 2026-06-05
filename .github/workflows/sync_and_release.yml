@@ -307,21 +307,41 @@ jobs:
           UPSTREAM_TAG: ${{ needs.sync_main.outputs.upstream_tag }}
           REPOSITORY: ${{ github.repository }}
         run: |
-          # Format upstream tag (e.g., v1.5.3-pre -> Zed 1.5.3 Preview)
-          TAG_DISPLAY="${UPSTREAM_TAG#v}"
+          # Fetch the latest release (prerelease if available, otherwise stable) from upstream
+          if UPSTREAM_RELEASE_JSON=$(gh api repos/zed-industries/zed/releases --jq '. | (map(select(.prerelease == true)) | .[0]) // (map(select(.prerelease == false)) | .[0])' 2>/dev/null); then
+            echo "$UPSTREAM_RELEASE_JSON" > upstream_release.json
+            UPSTREAM_TAG_NAME=$(jq -r '.tag_name' upstream_release.json 2>/dev/null || echo "")
+            UPSTREAM_BODY=$(jq -r '.body' upstream_release.json 2>/dev/null || echo "")
+          else
+            UPSTREAM_TAG_NAME=""
+            UPSTREAM_BODY=""
+          fi
+
+          # Fallback to local git upstream tag if API fetch failed
+          TARGET_TAG="${UPSTREAM_TAG_NAME:-$UPSTREAM_TAG}"
+
+          # Format tag for display (e.g., v1.6.0-pre -> Zed 1.6.0 Preview)
+          TAG_DISPLAY="${TARGET_TAG#v}"
           if [[ "$TAG_DISPLAY" == *"-pre" ]]; then
             TAG_DISPLAY="Zed ${TAG_DISPLAY%-pre} Preview"
           else
             TAG_DISPLAY="Zed ${TAG_DISPLAY}"
           fi
-          
-          RELEASE_NOTES=$(printf -- "- Build synced with the official upstream Zed release.\n- All changes and features from %s have been successfully added." "${TAG_DISPLAY}")
+
+          # Base release notes
+          printf -- "## Fork Changes\n- Build synced with the official upstream Zed release.\n- All changes and features from %s have been successfully added.\n" "${TAG_DISPLAY}" > release_notes.md
+
+          # Append upstream changelog if available
+          if [ -n "$UPSTREAM_TAG_NAME" ] && [ "$UPSTREAM_TAG_NAME" != "null" ] && [ -n "$UPSTREAM_BODY" ] && [ "$UPSTREAM_BODY" != "null" ]; then
+            printf "\n## Changes in Zed %s\n" "$UPSTREAM_TAG_NAME" >> release_notes.md
+            printf "%s\n" "$UPSTREAM_BODY" >> release_notes.md
+          fi
 
           if [ "$(ls -A release-files)" ]; then
             if gh release view "v${VERSION}" --repo "${REPOSITORY}" >/dev/null 2>&1; then
               echo "Release v${VERSION} already exists. Uploading and replacing assets."
               gh release upload "v${VERSION}" release-files/* --repo "${REPOSITORY}" --clobber
-              gh release edit "v${VERSION}" --repo "${REPOSITORY}" --notes "$RELEASE_NOTES"
+              gh release edit "v${VERSION}" --repo "${REPOSITORY}" --notes-file release_notes.md
               
               # Force update tag to point to the built commit
               git config --global user.name "github-actions[bot]"
@@ -333,7 +353,7 @@ jobs:
               gh release create "v${VERSION}" \
                 --repo "${REPOSITORY}" \
                 --title "Zed v${VERSION}" \
-                --notes "$RELEASE_NOTES" \
+                --notes-file release_notes.md \
                 release-files/*
             fi
           else
