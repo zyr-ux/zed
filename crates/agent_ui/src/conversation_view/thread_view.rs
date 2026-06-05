@@ -5374,7 +5374,7 @@ impl ThreadView {
                             .when(editor_focus, |this| {
                                 let base_container = h_flex()
                                     .absolute()
-                                    .top_neg_3p5()
+                                    .bottom_neg_3p5()
                                     .right_3()
                                     .gap_1()
                                     .rounded_sm()
