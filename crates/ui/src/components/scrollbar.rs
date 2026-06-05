@@ -1188,16 +1188,16 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
                                     ScrollbarStyle::Regular => {
                                         scroll_track_bounds.extend(match axis {
                                             ScrollbarAxis::Vertical => Edges {
-                                                top: Pixels::ZERO,
+                                                top: -SCROLLBAR_PADDING,
                                                 right: Pixels::ZERO,
-                                                bottom: Pixels::ZERO,
+                                                bottom: -SCROLLBAR_PADDING,
                                                 left: -SCROLLBAR_PADDING,
                                             },
                                             ScrollbarAxis::Horizontal => Edges {
                                                 top: -SCROLLBAR_PADDING,
-                                                right: Pixels::ZERO,
+                                                right: -SCROLLBAR_PADDING,
                                                 bottom: Pixels::ZERO,
-                                                left: Pixels::ZERO,
+                                                left: -SCROLLBAR_PADDING,
                                             },
                                         })
                                     }
