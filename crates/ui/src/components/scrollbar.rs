@@ -358,7 +358,7 @@ pub enum ScrollbarStyle {
 impl ScrollbarStyle {
     pub const fn to_pixels(&self) -> Pixels {
         match self {
-            ScrollbarStyle::Regular => px(6.),
+            ScrollbarStyle::Regular => px(10.),
             ScrollbarStyle::Editor => px(15.),
         }
     }
