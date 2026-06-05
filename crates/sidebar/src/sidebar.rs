@@ -2171,18 +2171,6 @@ impl Sidebar {
                 is_active: is_active_group,
                 has_threads,
             } => {
-                let has_active_draft = is_active
-                    && self
-                        .active_workspace(cx)
-                        .and_then(|ws| ws.read(cx).panel::<AgentPanel>(cx))
-                        .is_some_and(|panel| {
-                            let panel = panel.read(cx);
-                            // An active terminal is its own surface, not a draft.
-                            panel.active_terminal_id().is_none()
-                                && (panel.active_view_is_new_draft(cx)
-                                    || panel.active_conversation_view().is_none())
-                        });
-
                 self.project_header_menu_handles.entry(ix).or_default();
                 self.project_header_new_thread_menu_handles
                     .entry(ix)
@@ -2200,7 +2188,7 @@ impl Sidebar {
                     *is_active_group,
                     is_selected,
                     *has_threads,
-                    has_active_draft,
+                    // has_active_draft,
                     cx,
                 )
             }
@@ -2259,7 +2247,6 @@ impl Sidebar {
         is_active: bool,
         is_focused: bool,
         has_threads: bool,
-        has_active_draft: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let host = key.host();
@@ -2383,17 +2370,9 @@ impl Sidebar {
             )
             .child(
                 h_flex()
-                    .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
-                        cx.stop_propagation();
-                    })
-                    .child(self.render_new_thread_button(
-                        ix,
-                        id_prefix,
-                        key,
-                        has_active_draft,
-                        &group_name,
-                        cx,
-                    ))
+                    .gap_px()
+                    .pr_1p5()
+                    .child(self.render_new_thread_button(ix, id_prefix, key, &group_name, cx))
                     .child(self.render_project_header_ellipsis_menu(
                         ix,
                         id_prefix,
@@ -2402,7 +2381,10 @@ impl Sidebar {
                         has_threads,
                         &group_name,
                         cx,
-                    )),
+                    ))
+                    .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
+                        cx.stop_propagation();
+                    }),
             )
             .on_mouse_down(gpui::MouseButton::Right, {
                 let menu_handle = self
@@ -2423,7 +2405,8 @@ impl Sidebar {
                         this.toggle_collapse(&key_for_toggle, window, cx);
                     }
                 }),
-            );
+            )
+            .occlude();
 
         if !is_collapsed && !has_threads {
             v_flex()
@@ -2455,7 +2438,6 @@ impl Sidebar {
         ix: usize,
         id_prefix: &str,
         key: &ProjectGroupKey,
-        has_active_draft: bool,
         group_name: &SharedString,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -2474,10 +2456,7 @@ impl Sidebar {
         )
         .selected_style(ButtonStyle::Tinted(TintColor::Accent))
         .icon_size(IconSize::Small)
-        .when(has_active_draft, |this| this.icon_color(Color::Accent))
-        .when(!has_active_draft && !is_menu_open, |this| {
-            this.visible_on_hover(group_name)
-        });
+        .when(!is_menu_open, |this| this.visible_on_hover(group_name));
 
         let open_workspaces = self
             .multi_workspace
@@ -2600,6 +2579,11 @@ impl Sidebar {
                     menu
                 },
             ))
+        })
+        .anchor(gpui::Anchor::TopRight)
+        .offset(gpui::Point {
+            x: px(0.),
+            y: px(1.),
         })
         .into_any_element()
     }
@@ -3011,17 +2995,6 @@ impl Sidebar {
         let is_focused = self.focus_handle.is_focused(window);
         let is_selected = is_focused && self.selection == Some(header_idx);
 
-        let has_active_draft = *is_active
-            && self
-                .active_workspace(cx)
-                .and_then(|ws| ws.read(cx).panel::<AgentPanel>(cx))
-                .is_some_and(|panel| {
-                    let panel = panel.read(cx);
-                    // An active terminal is its own surface, not a draft.
-                    panel.active_terminal_id().is_none()
-                        && (panel.active_view_is_new_draft(cx)
-                            || panel.active_conversation_view().is_none())
-                });
         let header_element = self.render_project_header(
             header_idx,
             true,
@@ -3034,7 +3007,6 @@ impl Sidebar {
             *is_active,
             is_selected,
             *has_threads,
-            has_active_draft,
             cx,
         );
 
@@ -3066,7 +3038,7 @@ impl Sidebar {
             .border_b_1()
             .border_color(color.border.opacity(0.5))
             .child(header_element)
-            .shadow_xs()
+            .shadow_sm()
             .into_any_element();
 
         Some(element)
@@ -6181,7 +6153,6 @@ impl Sidebar {
             .when(is_hovered && !is_renaming, |this| {
                 let rename_button = IconButton::new(("rename-thread", ix), IconName::Pencil)
                     .icon_size(IconSize::Small)
-                    .icon_color(Color::Muted)
                     .tooltip({
                         let focus_handle = focus_handle.clone();
                         move |_window, cx| {
@@ -6224,7 +6195,6 @@ impl Sidebar {
                         Some(DraftKind::WithContent) => Some(
                             IconButton::new("discard_thread", IconName::Close)
                                 .icon_size(IconSize::Small)
-                                .icon_color(Color::Muted)
                                 .tooltip(Tooltip::text("Discard Draft"))
                                 .on_click({
                                     let thread_workspace = thread_workspace.clone();
@@ -6242,7 +6212,6 @@ impl Sidebar {
                         None => Some(
                             IconButton::new("archive-thread", IconName::Archive)
                                 .icon_size(IconSize::Small)
-                                .icon_color(Color::Muted)
                                 .tooltip({
                                     let focus_handle = focus_handle.clone();
                                     move |_window, cx| {
