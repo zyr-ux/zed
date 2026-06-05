@@ -12,7 +12,6 @@ use agent::{SkillLoadingError, SkillLoadingErrorsUpdated};
 use agent_settings::UserAgentsMd;
 use cloud_api_types::{SubmitAgentThreadFeedbackBody, SubmitAgentThreadFeedbackCommentsBody};
 use editor::actions::OpenExcerpts;
-use feature_flags::AcpBetaFeatureFlag;
 
 use crate::completion_provider::AvailableSkill;
 use crate::message_editor::SharedSessionCapabilities;
@@ -650,11 +649,15 @@ pub struct TurnFields {
 ///
 /// `Standalone` draws its own border/margin/location header. `Embedded` is
 /// hosted by a container that provides its own framing (e.g. the subagent
-/// card or the main-agent awaiting-permission row).
+/// card). `Floating` is like `Embedded`, but used for the floating
+/// awaiting-permission row above the message editor: the tool call's content
+/// is height-capped and scrollable so the row can never grow to consume the
+/// entire panel and squeeze the conversation list out of view.
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum ToolCallLayout {
     Standalone,
     Embedded,
+    Floating,
 }
 
 fn full_path_for_empty_project_path(file: &dyn language::File, cx: &App) -> Option<String> {
@@ -1067,6 +1070,7 @@ impl ThreadView {
             MessageEditorEvent::LostFocus => {}
             MessageEditorEvent::SlashAutocompleteOpened => {}
             MessageEditorEvent::InputAttempted { .. } => {}
+            MessageEditorEvent::Edited => {}
         }
     }
 
@@ -1207,6 +1211,7 @@ impl ThreadView {
             }
             ViewEvent::MessageEditorEvent(_editor, MessageEditorEvent::SlashAutocompleteOpened) => {
             }
+            ViewEvent::MessageEditorEvent(_editor, MessageEditorEvent::Edited) => {}
             ViewEvent::MessageEditorEvent(_editor, MessageEditorEvent::InputAttempted { .. }) => {}
             ViewEvent::OpenDiffLocation {
                 path,
@@ -3136,7 +3141,7 @@ impl ThreadView {
             entry_ix,
             tool_call,
             &focus_handle,
-            ToolCallLayout::Embedded,
+            ToolCallLayout::Floating,
             window,
             cx,
         );
@@ -4155,18 +4160,14 @@ impl ThreadView {
         let usage = thread.token_usage()?;
         let show_split = self.supports_split_token_display(cx);
 
-        let cost_label = if cx.has_flag::<AcpBetaFeatureFlag>() {
-            thread.cost().map(|cost| {
-                let precision = if cost.amount > 0.0 && cost.amount < 0.01 {
-                    4
-                } else {
-                    2
-                };
-                format!("{:.prec$} {}", cost.amount, cost.currency, prec = precision)
-            })
-        } else {
-            None
-        };
+        let cost_label = thread.cost().map(|cost| {
+            let precision = if cost.amount > 0.0 && cost.amount < 0.01 {
+                4
+            } else {
+                2
+            };
+            format!("{:.prec$} {}", cost.amount, cost.currency, prec = precision)
+        });
 
         let progress_color = |ratio: f32| -> Hsla {
             if ratio >= 0.85 {
@@ -7108,14 +7109,11 @@ impl ThreadView {
 
         let tool_output_display = if is_open {
             match &tool_call.status {
-                ToolCallStatus::WaitingForConfirmation { options, .. } => v_flex()
-                    .w_full()
-                    .children(
-                        tool_call
-                            .content
-                            .iter()
-                            .enumerate()
-                            .map(|(content_ix, content)| {
+                ToolCallStatus::WaitingForConfirmation { options, .. } => {
+                    let confirmation_content = v_flex()
+                        .w_full()
+                        .children(tool_call.content.iter().enumerate().map(
+                            |(content_ix, content)| {
                                 div()
                                     .child(self.render_tool_call_content(
                                         active_session_id,
@@ -7130,94 +7128,119 @@ impl ThreadView {
                                         cx,
                                     ))
                                     .into_any_element()
-                            }),
-                    )
-                    .when_some(
-                        tool_call.sandbox_authorization_details.as_ref(),
-                        |this, details| {
-                            this.child(self.render_sandbox_authorization_details(
-                                entry_ix,
-                                &tool_call.id,
-                                details,
-                                cx,
-                            ))
-                        },
-                    )
-                    .when(should_show_raw_input, |this| {
-                        let is_raw_input_expanded =
-                            self.expanded_tool_call_raw_inputs.contains(&tool_call.id);
-
-                        let input_header = if is_raw_input_expanded {
-                            "Raw Input:"
-                        } else {
-                            "View Raw Input"
-                        };
-
-                        this.child(
-                            v_flex()
-                                .p_2()
-                                .gap_1()
-                                .border_t_1()
-                                .border_color(self.tool_card_border_color(cx))
-                                .child(
-                                    h_flex()
-                                        .id("disclosure_container")
-                                        .pl_0p5()
-                                        .gap_1()
-                                        .justify_between()
-                                        .rounded_xs()
-                                        .hover(|s| s.bg(cx.theme().colors().element_hover))
-                                        .child(input_output_header(input_header.into()))
-                                        .child(
-                                            Disclosure::new(
-                                                ("raw-input-disclosure", entry_ix),
-                                                is_raw_input_expanded,
-                                            )
-                                            .opened_icon(IconName::ChevronUp)
-                                            .closed_icon(IconName::ChevronDown),
-                                        )
-                                        .on_click(cx.listener({
-                                            let id = tool_call.id.clone();
-
-                                            move |this: &mut Self, _, _, cx| {
-                                                if this.expanded_tool_call_raw_inputs.contains(&id)
-                                                {
-                                                    this.expanded_tool_call_raw_inputs.remove(&id);
-                                                } else {
-                                                    this.expanded_tool_call_raw_inputs
-                                                        .insert(id.clone());
-                                                }
-                                                cx.notify();
-                                            }
-                                        })),
-                                )
-                                .when(is_raw_input_expanded, |this| {
-                                    this.children(tool_call.raw_input_markdown.clone().map(
-                                        |input| {
-                                            self.render_markdown(
-                                                input,
-                                                MarkdownStyle::themed(
-                                                    MarkdownFont::Agent,
-                                                    window,
-                                                    cx,
-                                                ),
-                                                cx,
-                                            )
-                                        },
-                                    ))
-                                }),
+                            },
+                        ))
+                        .when_some(
+                            tool_call.sandbox_authorization_details.as_ref(),
+                            |this, details| {
+                                this.child(self.render_sandbox_authorization_details(
+                                    entry_ix,
+                                    &tool_call.id,
+                                    details,
+                                    cx,
+                                ))
+                            },
                         )
-                    })
-                    .child(self.render_permission_buttons(
-                        self.thread.read(cx).session_id().clone(),
-                        self.is_first_tool_call(active_session_id, &tool_call.id, cx),
-                        options,
-                        entry_ix,
-                        tool_call.id.clone(),
-                        focus_handle,
-                        cx,
-                    ))
-                    .into_any(),
+                        .when(should_show_raw_input, |this| {
+                            let is_raw_input_expanded =
+                                self.expanded_tool_call_raw_inputs.contains(&tool_call.id);
+
+                            let input_header = if is_raw_input_expanded {
+                                "Raw Input:"
+                            } else {
+                                "View Raw Input"
+                            };
+
+                            this.child(
+                                v_flex()
+                                    .p_2()
+                                    .gap_1()
+                                    .border_t_1()
+                                    .border_color(self.tool_card_border_color(cx))
+                                    .child(
+                                        h_flex()
+                                            .id("disclosure_container")
+                                            .pl_0p5()
+                                            .gap_1()
+                                            .justify_between()
+                                            .rounded_xs()
+                                            .hover(|s| s.bg(cx.theme().colors().element_hover))
+                                            .child(input_output_header(input_header.into()))
+                                            .child(
+                                                Disclosure::new(
+                                                    ("raw-input-disclosure", entry_ix),
+                                                    is_raw_input_expanded,
+                                                )
+                                                .opened_icon(IconName::ChevronUp)
+                                                .closed_icon(IconName::ChevronDown),
+                                            )
+                                            .on_click(cx.listener({
+                                                let id = tool_call.id.clone();
+
+                                                move |this: &mut Self, _, _, cx| {
+                                                    if this
+                                                        .expanded_tool_call_raw_inputs
+                                                        .contains(&id)
+                                                    {
+                                                        this.expanded_tool_call_raw_inputs
+                                                            .remove(&id);
+                                                    } else {
+                                                        this.expanded_tool_call_raw_inputs
+                                                            .insert(id.clone());
+                                                    }
+                                                    cx.notify();
+                                                }
+                                            })),
+                                    )
+                                    .when(is_raw_input_expanded, |this| {
+                                        this.children(tool_call.raw_input_markdown.clone().map(
+                                            |input| {
+                                                self.render_markdown(
+                                                    input,
+                                                    MarkdownStyle::themed(
+                                                        MarkdownFont::Agent,
+                                                        window,
+                                                        cx,
+                                                    ),
+                                                    cx,
+                                                )
+                                            },
+                                        ))
+                                    }),
+                            )
+                        });
+
+                    v_flex()
+                        .w_full()
+                        .map(|this| {
+                            if layout == ToolCallLayout::Floating {
+                                // Cap the content (e.g. a full plan awaiting
+                                // approval) so the floating row can never
+                                // consume the entire panel and squeeze the
+                                // conversation list to zero height, while the
+                                // permission buttons below stay visible.
+                                this.child(
+                                    div()
+                                        .id(("floating-confirmation-content", entry_ix))
+                                        .max_h_40()
+                                        .overflow_y_scroll()
+                                        .child(confirmation_content),
+                                )
+                            } else {
+                                this.child(confirmation_content)
+                            }
+                        })
+                        .child(self.render_permission_buttons(
+                            self.thread.read(cx).session_id().clone(),
+                            self.is_first_tool_call(active_session_id, &tool_call.id, cx),
+                            options,
+                            entry_ix,
+                            tool_call.id.clone(),
+                            focus_handle,
+                            cx,
+                        ))
+                        .into_any()
+                }
                 ToolCallStatus::Pending | ToolCallStatus::InProgress
                     if is_edit
                         && tool_call.content.is_empty()
@@ -7310,7 +7333,10 @@ impl ThreadView {
 
         v_flex()
             .map(|this| {
-                if layout == ToolCallLayout::Embedded {
+                if matches!(
+                    layout,
+                    ToolCallLayout::Embedded | ToolCallLayout::Floating
+                ) {
                     this
                 } else if use_card_layout {
                     this.my_1p5()
