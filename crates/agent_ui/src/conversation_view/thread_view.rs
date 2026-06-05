@@ -8299,9 +8299,35 @@ impl ThreadView {
             .into_any_element()
         };
 
+        let gradient_overlay = {
+            div()
+                .absolute()
+                .top_0()
+                .right_0()
+                .w_12()
+                .h_full()
+                .map(|this| {
+                    if use_card_layout {
+                        this.bg(linear_gradient(
+                            90.,
+                            linear_color_stop(self.tool_card_header_bg(cx), 1.),
+                            linear_color_stop(self.tool_card_header_bg(cx).opacity(0.2), 0.),
+                        ))
+                    } else {
+                        this.bg(linear_gradient(
+                            90.,
+                            linear_color_stop(cx.theme().colors().panel_background, 1.),
+                            linear_color_stop(
+                                cx.theme().colors().panel_background.opacity(0.2),
+                                0.,
+                            ),
+                        ))
+                    }
+                })
+        };
+
         h_flex()
             .relative()
-            .min_w_0()
             .w_full()
             .h(window.line_height() - px(2.))
             .text_size(self.tool_name_font_size())
@@ -8317,11 +8343,7 @@ impl ThreadView {
             .child(if has_location {
                 h_flex()
                     .id(("open-tool-call-location", entry_ix))
-                    .min_w_0()
                     .w_full()
-                    .whitespace_nowrap()
-                    .overflow_x_hidden()
-                    .text_ellipsis()
                     .map(|this| {
                         if use_card_layout {
                             this.text_color(cx.theme().colors().text)
@@ -8330,11 +8352,15 @@ impl ThreadView {
                         }
                     })
                     .child(
-                        Label::new(tool_call.label.read(cx).source().clone())
-                            .render_code_spans()
-                            .single_line()
-                            .truncate()
-                            .color(if use_card_layout { Color::Default } else { Color::Muted }),
+                        self.render_markdown(
+                            tool_call.label.clone(),
+                            MarkdownStyle {
+                                prevent_mouse_interaction: true,
+                                ..MarkdownStyle::themed(MarkdownFont::Agent, window, cx)
+                                    .with_muted_text(cx)
+                            },
+                            cx,
+                        ),
                     )
                     .tooltip(Tooltip::text("Go to File"))
                     .on_click(cx.listener(move |this, _, window, cx| {
@@ -8343,20 +8369,15 @@ impl ThreadView {
                     .into_any_element()
             } else {
                 h_flex()
-                    .min_w_0()
                     .w_full()
-                    .whitespace_nowrap()
-                    .overflow_x_hidden()
-                    .when(!is_edit, |this| this.text_ellipsis())
-                    .child(
-                        Label::new(tool_call.label.read(cx).source().clone())
-                            .render_code_spans()
-                            .single_line()
-                            .color(Color::Muted)
-                            .when(!is_edit, |this| this.truncate()),
-                    )
+                    .child(self.render_markdown(
+                        tool_call.label.clone(),
+                        MarkdownStyle::themed(MarkdownFont::Agent, window, cx).with_muted_text(cx),
+                        cx,
+                    ))
                     .into_any()
             })
+            .when(!is_edit, |this| this.child(gradient_overlay))
     }
 
     fn open_tool_call_location(
