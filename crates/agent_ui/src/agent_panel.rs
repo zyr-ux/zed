@@ -5734,6 +5734,7 @@ impl AgentPanel {
                                     window.dispatch_action(
                                         Box::new(zed_actions::OpenSettingsAt {
                                             path: "agent.skills".to_string(),
+                                            target: None,
                                         }),
                                         cx,
                                     );
