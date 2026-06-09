@@ -4,8 +4,8 @@ This document records the fork-specific changes in this repository so future mer
 
 It is based on:
 - the `Fork Changes` section in `README.md`
-- commits authored by `zyr-ux`
 - the current diff between this fork and `upstream/main`
+- to trace the commit history of any fork-specific file, filter by the fork owner's author name: `zyr-ux`
 
 The goal is not just to list changed files, but to explain:
 - what changed
@@ -48,9 +48,6 @@ The main fork-specific areas are:
 - `crates/zed/resources/windows/app-icon-preview.ico`
 - `crates/zed/resources/windows/app-icon-nightly.ico`
 
-### Main commit
-- `65d57555f1` — `updated all logos`
-
 ### What changed
 The upstream app icons were replaced with fork-specific branding for all release channels and platforms currently represented in these resources.
 
@@ -75,17 +72,10 @@ The change is asset-only: the image/icon files in `crates/zed/resources/` were r
 ### File
 - `crates/ui/src/components/scrollbar.rs`
 
-### Main commits
-- `c5f468852b` — `scrollbar: improved the scrollbar to be flush to the edge and removed rounded corners`
-- `d0df5864b5` — `increased the ui scrollbar thickness`
-- `1e2927b8e3` — `made the scrollbar a bit slimmer`
-- `79aac88c44` — `improved the scrollbar padding`
-
 ### What changed
 The non-editor UI scrollbar style (`ScrollbarStyle::Regular`) was customized.
 
 Current fork behavior versus upstream:
-- width is `8px` instead of `6px`
 - rounded pill corners were removed; the thumb is square/flat
 - padding was changed so the scrollbar sits flush against the outer edge instead of floating with symmetric padding
 - inner spacing is preserved so the thumb still has breathing room toward the content side
@@ -98,7 +88,6 @@ The fork prefers a more solid, edge-aligned scrollbar appearance in UI surfaces 
 
 ### How it was implemented
 In `crates/ui/src/components/scrollbar.rs`:
-- `ScrollbarStyle::Regular` width was changed from `px(6.)` to `px(8.)`
 - reserved track space for regular scrollbars was reduced from `2 * SCROLLBAR_PADDING` to `SCROLLBAR_PADDING`
 - the thumb container bounds for regular scrollbars were changed from symmetric `dilate(-SCROLLBAR_PADDING)` to axis-specific edge extension logic
 - rounded corners for regular thumbs were replaced with `Corners::default()`
@@ -123,17 +112,6 @@ If upstream heavily refactors scrollbar layout, preserve the intent, not the exa
 - `crates/agent_ui/src/conversation_view/thread_view.rs`
 - `crates/sidebar/src/sidebar.rs`
 - `crates/ui/src/components/ai/thread_item.rs`
-
-### Main commits
-- `0e4a15a320` — `gradient_fade: removed the usage of the gradient fade truncation and replaced them with normal ellipses truncation`
-- `89cb88ab88` — `removed more instances of gradient based truncation`
-- `68103dd5d2` — `fixed the tool call truncation`
-- `a85933d64e` — `fixed the thread title bar not having proper truncation`
-- `6091ab9968` — `fixed the div() not having an id for editing the thread title`
-- `c4413bb50a` — `updated the tool calls to use labels to properly use ellipsis truncation`
-- `646c7438fe` — `reverted the tool calls truncation logic. it now matches the origianl logic`
-- `e04460ccde` — `fixed the ai prompt editing controls clipping for the very 1st message in the thread`
-- `8d48bb8dc0` — `fixed is_edit related warning`
 
 ### High-level intent
 Upstream often used gradient fade overlays to visually soften truncated text. This fork prefers explicit ellipsis truncation (`...`) and layout spacing that keeps text readable without fade masks.
@@ -243,26 +221,6 @@ In general, preserve:
 ### File
 - `.github/workflows/sync_and_release.yml`
 
-### Main commits
-- `9e78af9e14` — `added my own workflow file`
-- `439e145186` — `updated workflow`
-- `66ebed1a96` — `fixed workflow errors in the windows runner`
-- `100564e176` — `updated the workflow and the auto updater to update zed from my custom fork builds`
-- `90380008b1` — `fixed the long path error in the windows runner`
-- `d41b7f5443` — `fixed workflow related to linux and mac runners`
-- `97bb49eae9` — `updated the macos runner to macos 14 for reduced queue time when building`
-- `37eef54d53` — `forced xcode version to 15.2/15.0.1 to fix the macos builds from failing`
-- `386af9d64a` — `pinned cxx version in macos build to avoid xcode 15+ errors`
-- `ac20a98ec3` — `fixed macos arm build issue`
-- `5cf7c8298b` — `updated macos runners to use macos 15`
-- `c9e9d4d805` — `improved workflow`
-- `23d8541d56` — `updated workflow to to only sync the repo with the origianl repo daily but only release a build if a newer version is detected`
-- `d290286e02` — `fixed a file lock issue in macos builds`
-- `82b0ec33d6` — `fixed the paths for the various build binaries`
-- `04063c4b79` — `improved the releases section of the builds`
-- `4565bdf0d3` — `updated workflow to use github PAT`
-- `8b60b3b417` — `updated release note generation through the workflow`
-
 ### What changed
 This fork adds a repo-owned GitHub Actions workflow for syncing with `upstream/main`, building fork binaries, and publishing releases from this fork repository.
 
@@ -293,9 +251,6 @@ If upstream changes build scripts, artifact names, or release conventions:
 ### Files
 - `crates/auto_update/src/auto_update.rs`
 - `.github/workflows/sync_and_release.yml`
-
-### Main commits
-- `100564e176` — `updated the workflow and the auto updater to update zed from my custom fork builds`
 
 ### What changed
 The app's auto-update logic was modified so it can download release assets from a configurable GitHub repository instead of assuming upstream's release endpoints.
@@ -343,9 +298,6 @@ If artifact names change in the workflow, update the auto-updater too. These two
 - `crates/auto_update_ui/src/auto_update_ui.rs`
 - `crates/http_client/src/github.rs`
 
-### Main commits
-- `b110b407fb` — `added support for changelog dsiplay in the app for the custom fork releases`
-
 ### What changed
 When the app is configured to update from this fork's repository, the in-app "View Release Notes" flow fetches release notes from the fork's GitHub release body and displays them locally.
 
@@ -383,10 +335,6 @@ If upstream adds a new generic abstraction for release-note providers, this fork
 ### File
 - `README.md`
 
-### Main commits
-- `d5a64d1f7c` — `updated Readme`
-- `06775981b3` — `updated readme`
-
 ### What changed
 The README was updated to:
 - rename the title to `Zed - Fork`
@@ -408,7 +356,6 @@ When resolving future conflicts, check these points first:
 - Are fork logo assets still present for all release channels?
 
 ### Scrollbars
-- Is `ScrollbarStyle::Regular` still thicker than upstream?
 - Is the thumb still square/flat, not rounded?
 - Is it still flush to the outer edge?
 
