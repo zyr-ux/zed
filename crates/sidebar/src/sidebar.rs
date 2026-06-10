@@ -2431,7 +2431,7 @@ impl Sidebar {
                     }
                 }),
             )
-            .occlude();
+            .block_mouse_except_scroll();
 
         if !is_collapsed && !has_threads {
             v_flex()
@@ -6559,15 +6559,7 @@ impl Sidebar {
                 IconButton::new("open-project", IconName::OpenFolder)
                     .icon_size(IconSize::Small)
                     .selected_style(ButtonStyle::Tinted(TintColor::Accent)),
-                |_window, cx| {
-                    Tooltip::for_action(
-                        "Add Project",
-                        &OpenRecent {
-                            create_new_window: false,
-                        },
-                        cx,
-                    )
-                },
+                |_window, cx| Tooltip::for_action("Add Project", &OpenRecent::default(), cx),
             )
             .offset(gpui::Point {
                 x: px(-2.0),
@@ -7263,7 +7255,7 @@ impl Sidebar {
             telemetry::event!("Sidebar Add Project Clicked", side = side);
             window.dispatch_action(
                 Open {
-                    create_new_window: false,
+                    create_new_window: Some(false),
                 }
                 .boxed_clone(),
                 cx,
@@ -7455,7 +7447,21 @@ impl Sidebar {
             .map(|w| w.read(cx).workspace().clone())
     }
 
-    fn show_thread_import_modal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn show_thread_import_modal(
+        &mut self,
+        source: &'static str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        telemetry::event!(
+            "Agent Threads Import Clicked",
+            source = source,
+            side = match self.side(cx) {
+                SidebarSide::Left => "left",
+                SidebarSide::Right => "right",
+            }
+        );
+
         let Some(active_workspace) = self.active_workspace(cx) else {
             return;
         };
@@ -7511,7 +7517,7 @@ impl Sidebar {
     ) -> impl IntoElement {
         let on_import = cx.listener(|this, _, window, cx| {
             this.show_archive(window, cx);
-            this.show_thread_import_modal(window, cx);
+            this.show_thread_import_modal("external_agent_onboarding", window, cx);
         });
         render_import_onboarding_banner(
             "acp",
@@ -7550,6 +7556,14 @@ impl Sidebar {
         );
 
         let on_import = cx.listener(|this, _, _window, cx| {
+            telemetry::event!(
+                "Agent Threads Import Clicked",
+                source = "cross_channel_onboarding",
+                side = match this.side(cx) {
+                    SidebarSide::Left => "left",
+                    SidebarSide::Right => "right",
+                }
+            );
             CrossChannelImportOnboarding::dismiss(cx);
             if let Some(workspace) = this.active_workspace(cx) {
                 workspace.update(cx, |workspace, cx| {
@@ -7580,11 +7594,6 @@ impl Sidebar {
     ) {
         match &self.view {
             SidebarView::ThreadList => {
-                let side = match self.side(cx) {
-                    SidebarSide::Left => "left",
-                    SidebarSide::Right => "right",
-                };
-                telemetry::event!("Thread History Viewed", side = side);
                 self.show_archive(window, cx);
             }
             SidebarView::Archive(_) => self.show_thread_list(window, cx),
@@ -7592,6 +7601,12 @@ impl Sidebar {
     }
 
     fn show_archive(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let side = match self.side(cx) {
+            SidebarSide::Left => "left",
+            SidebarSide::Right => "right",
+        };
+        telemetry::event!("Thread History Viewed", side = side);
+
         let Some(active_workspace) = self
             .multi_workspace
             .upgrade()
@@ -7636,7 +7651,7 @@ impl Sidebar {
                     this.restoring_tasks.remove(thread_id);
                 }
                 ThreadsArchiveViewEvent::Import => {
-                    this.show_thread_import_modal(window, cx);
+                    this.show_thread_import_modal("thread_history", window, cx);
                 }
             },
         );
