@@ -6,7 +6,6 @@
 Welcome to Zed, a high-performance, multiplayer code editor from the creators of [Atom](https://github.com/atom/atom) and [Tree-sitter](https://github.com/tree-sitter/tree-sitter).
 
 ### Fork Changes
-- Full fork-specific merge and maintenance notes: [`docs/src/fork-changes.md`](./docs/src/fork-changes.md)
 - Updated the logos for all release channels (`crates/zed/resources/`) <sup>*</sup>
 - Modified the look and feel of the scrollbar in the ui (not the editor) ([scrollbar.rs](./crates/ui/src/components/scrollbar.rs))
 - Removed all instances of gradient fade truncation with proper ellipsis(...) truncation ([agent_panel.rs](./crates/agent_ui/src/agent_panel.rs), [sidebar.rs](./crates/sidebar/src/sidebar.rs), [thread_item.rs](./crates/ui/src/components/ai/thread_item.rs), [thread_view.rs](./crates/agent_ui/src/conversation_view/thread_view.rs))
@@ -14,6 +13,8 @@ Welcome to Zed, a high-performance, multiplayer code editor from the creators of
 - Updated internal Zed updater to download binaries from the Github releases of this fork ([sync_and_release.yml](./.github/workflows/sync_and_release.yml), [auto_update.rs](./crates/auto_update/src/auto_update.rs), [auto_update_ui.rs](./crates/auto_update_ui/src/auto_update_ui.rs), [github.rs](./crates/http_client/src/github.rs))
 
 *</sup> Logo inspired by [Sajal Saha](https://dribbble.com/logosajol) from Dribble
+
+Full fork-specific merge and maintenance notes: [`docs/src/fork-changes.md`](./docs/src/fork-changes.md)
 
 ### Installation
 
