@@ -21,6 +21,7 @@ use db::kvp::KeyValueStore;
 use gpui::List;
 use gpui::Stateful;
 use gpui::TaskExt;
+use gpui::deferred;
 use heapless::Vec as ArrayVec;
 use language_model::{
     FastModeConfirmation, LanguageModel, LanguageModelEffortLevel, LanguageModelId,
@@ -5511,7 +5512,7 @@ impl ThreadView {
 
                                 let is_loading_contents = self.is_loading_contents;
                                 if is_editable {
-                                    this.child(
+                                    this.child(deferred(
                                         base_container
                                             .child(
                                                 IconButton::new("cancel", IconName::Close)
@@ -5544,9 +5545,9 @@ impl ThreadView {
                                                         })).into_any_element()
                                                 }
                                             )
-                                    )
+                                    ))
                                 } else {
-                                    this.child(
+                                    this.child(deferred(
                                         base_container
                                             .border_dashed()
                                             .child(IconButton::new("non_editable", IconName::PencilUnavailable)
@@ -5572,7 +5573,7 @@ impl ThreadView {
                                                             .into_any_element()
                                                     }
                                                 }))),
-                                    )
+                                    ))
                                 }
                             }),
                     )
