@@ -216,7 +216,32 @@ In general, preserve:
 
 ---
 
-## 4. Custom GitHub sync-and-release workflow
+## 4. Fix floating edit-control buttons being painted over by backdrop overlay
+
+### File
+
+- `crates/agent_ui/src/conversation_view/thread_view.rs`
+
+### What changed
+
+- Wrapped the floating cancel/regenerate buttons (and the non-editable pencil button) rendered on a user message entry in GPUI's `deferred()` element.
+
+### Why it was changed
+
+When a user clicks a message to edit it, AI entries below receive an `absolute().inset_0()` backdrop overlay with `opacity(0.8)` to visually fade them. The floating action buttons (cancel `×` / regenerate `↵`) are positioned at `bottom_neg_3p5()` on the user message entry, placing them physically in the vertical space of the first AI entry below. Because GPUI paints list items top-to-bottom, the AI entry's backdrop was painted on top of the floating buttons, washing out their bottom border.
+
+### How it was implemented
+
+`deferred()` delays the paint of its child until after all non-deferred elements in the frame have painted, while keeping layout in-tree (so absolute positioning is resolved correctly). Wrapping the floating buttons ensures they always paint after the backdrops, regardless of list order.
+
+### Merge guidance
+
+- Keep the `deferred()` wrapping on both the editable and non-editable floating button containers in `render_entry`.
+- If upstream refactors the edit-control overlay or the backdrop logic, ensure the deferred painting relationship is preserved so the buttons always render above the backdrop.
+
+---
+
+## 5. Custom GitHub sync-and-release workflow
 
 ### File
 - `.github/workflows/sync_and_release.yml`
@@ -246,7 +271,7 @@ If upstream changes build scripts, artifact names, or release conventions:
 
 ---
 
-## 5. Updater downloads from the fork's GitHub releases
+## 6. Updater downloads from the fork's GitHub releases
 
 ### Files
 - `crates/auto_update/src/auto_update.rs`
@@ -291,7 +316,7 @@ If artifact names change in the workflow, update the auto-updater too. These two
 
 ---
 
-## 6. Show fork release notes inside the app
+## 7. Show fork release notes inside the app
 
 ### Files
 - `crates/auto_update/src/auto_update.rs`
@@ -330,7 +355,7 @@ If upstream adds a new generic abstraction for release-note providers, this fork
 
 ---
 
-## 7. README changes
+## 8. README changes
 
 ### File
 - `README.md`
@@ -434,10 +459,11 @@ This policy is especially important for conflicts involving:
 
 ## Summary
 
-This fork intentionally diverges from upstream in four main ways:
+This fork intentionally diverges from upstream in five main ways:
 - fork branding
 - a custom scrollbar style
 - explicit ellipsis-based truncation instead of gradient fades in several UI surfaces
 - a fully fork-owned release/update pipeline, including in-app release notes
+- a fix for floating edit-control buttons being painted over by the backdrop overlay when editing a message
 
 When in doubt during merges, preserve upstream structure and bug fixes, but keep these fork-level product decisions intact unless there is an explicit decision to drop them.

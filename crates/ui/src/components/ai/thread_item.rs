@@ -1,7 +1,8 @@
 use crate::{CommonAnimationExt, DiffStat, HighlightedLabel, Tooltip, prelude::*};
 
 use gpui::{
-    Animation, AnimationExt, ClickEvent, Hsla, MouseButton, SharedString, pulsating_between,
+    Animation, AnimationExt, ClickEvent, Hsla, MouseButton, SharedString,
+    WindowBackgroundAppearance, pulsating_between,
 };
 use itertools::Itertools as _;
 use std::{path::PathBuf, sync::Arc, time::Duration};
@@ -250,6 +251,11 @@ impl ThreadItem {
 impl RenderOnce for ThreadItem {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let color = cx.theme().colors();
+        // The fade gradient paints a solid color over the title to blend it into
+        // the row background, but a transparent window has no opaque surface to
+        // fade into, so it renders as a visible patch; truncate the title instead.
+        let opaque_window =
+            cx.theme().window_background_appearance() == WindowBackgroundAppearance::Opaque;
         let sidebar_base_bg = color
             .title_bar_background
             .blend(color.panel_background.opacity(0.25));
