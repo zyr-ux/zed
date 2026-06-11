@@ -7659,6 +7659,12 @@ impl Sidebar {
                 ThreadsArchiveViewEvent::Import => {
                     this.show_thread_import_modal("thread_history", window, cx);
                 }
+                ThreadsArchiveViewEvent::NewThread => {
+                    this.show_thread_list(window, cx);
+                    if let Some(workspace) = this.active_workspace(cx) {
+                        this.create_new_entry(&workspace, window, cx);
+                    }
+                }
             },
         );
 
