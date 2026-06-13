@@ -65,7 +65,27 @@ fn notify_release_notes_failed_to_show(
     _window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
-    let url = release_notes_url(cx);
+    let repo = std::env::var("ZED_UPDATE_REPO")
+        .ok()
+        .unwrap_or_else(|| {
+            option_env!("ZED_UPDATE_REPO")
+                .unwrap_or("zed-industries/zed")
+                .to_string()
+        });
+
+    let url = if repo != "zed-industries/zed" {
+        let release_channel = ReleaseChannel::try_global(cx);
+        let mut version = AppVersion::global(cx);
+        version.pre = semver::Prerelease::EMPTY;
+        version.build = semver::BuildMetadata::EMPTY;
+        let tag = match release_channel {
+            Some(ReleaseChannel::Preview) => format!("v{}-pre", version),
+            _ => format!("v{}", version),
+        };
+        Some(format!("https://github.com/{}/releases/tag/{}", repo, tag))
+    } else {
+        release_notes_url(cx)
+    };
 
     struct ReleaseNotesError {
         url: Option<String>,
@@ -106,7 +126,10 @@ fn view_release_notes_locally(
         return;
     }
 
-    let version = AppVersion::global(cx).to_string();
+    let mut version = AppVersion::global(cx);
+    version.pre = semver::Prerelease::EMPTY;
+    version.build = semver::BuildMetadata::EMPTY;
+    let version = version.to_string();
 
     let repo = std::env::var("ZED_UPDATE_REPO")
         .ok()
