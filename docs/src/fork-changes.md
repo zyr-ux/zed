@@ -3,7 +3,6 @@
 This document records the fork-specific changes in this repository so future merges from `upstream/main` can be resolved consistently.
 
 It is based on:
-- the `Fork Changes` section in `README.md`
 - the current diff between this fork and `upstream/main`
 - to trace the commit history of any fork-specific file, filter by the fork owner's author name: `zyr-ux`
 
@@ -26,9 +25,10 @@ The main fork-specific areas are:
 1. Fork branding / logos
 2. UI scrollbar styling
 3. Replacing gradient-fade truncation with ellipsis truncation
-4. Custom sync-and-release GitHub workflow
-5. Updating the app updater to use this fork's GitHub releases
-6. Showing fork release notes inside the app
+4. Repositioned the agent prompt floating edit controls button
+5. Custom sync-and-release GitHub workflow
+6. Updating the app updater to use this fork's GitHub releases
+7. Showing fork release notes inside the app
 
 ---
 
@@ -215,7 +215,7 @@ In general, preserve:
 
 ---
 
-## 4. Fix floating edit-control buttons being painted over by backdrop overlay
+## 4. Repositioned the agent prompt floating edit controls button
 
 ### File
 
@@ -223,20 +223,24 @@ In general, preserve:
 
 ### What changed
 
-- Wrapped the floating cancel/regenerate buttons (and the non-editable pencil button) rendered on a user message entry in GPUI's `deferred()` element.
+1. **Repositioned** the floating edit-controls button container on agent prompt (user message) entries from `top_neg_3p5()` to `bottom_neg_3p5()`, anchoring the buttons to the bottom edge of the message instead of the top.
+2. **Wrapped** the button container in GPUI's `deferred()` as a secondary fix to ensure the repositioned buttons paint after all non-deferred elements (i.e. after the backdrop overlays).
 
 ### Why it was changed
 
-When a user clicks a message to edit it, AI entries below receive an `absolute().inset_0()` backdrop overlay with `opacity(0.8)` to visually fade them. The floating action buttons (cancel `×` / regenerate `↵`) are positioned at `bottom_neg_3p5()` on the user message entry, placing them physically in the vertical space of the first AI entry below. Because GPUI paints list items top-to-bottom, the AI entry's backdrop was painted on top of the floating buttons, washing out their bottom border.
+- The buttons were originally anchored at `top_neg_3p5()`, placing them at the top edge of the user message entry. For the very first message in a new thread, this caused them to clip behind the thread's title card, making them partially invisible.
+- Moving the anchor to `bottom_neg_3p5()` places the buttons at the bottom edge of the message, clear of the title card. However, this exposed a second issue: when a user clicks a message to edit it, AI entries below receive an `absolute().inset_0()` backdrop overlay with `opacity(0.8)`, and because GPUI paints list items top-to-bottom the backdrop was painted on top of the buttons.
 
 ### How it was implemented
 
-`deferred()` delays the paint of its child until after all non-deferred elements in the frame have painted, while keeping layout in-tree (so absolute positioning is resolved correctly). Wrapping the floating buttons ensures they always paint after the backdrops, regardless of list order.
+- The `base_container` anchor was changed from `.absolute().top_neg_3p5()` to `.absolute().bottom_neg_3p5()`.
+- Both the editable branch (cancel + regenerate buttons) and the non-editable branch (pencil button) were wrapped with `deferred(...)`, which delays paint until after all non-deferred elements in the frame have painted while keeping layout in-tree so absolute positioning is still resolved correctly.
 
 ### Merge guidance
 
-- Keep the `deferred()` wrapping on both the editable and non-editable floating button containers in `render_entry`.
-- If upstream refactors the edit-control overlay or the backdrop logic, ensure the deferred painting relationship is preserved so the buttons always render above the backdrop.
+- Keep `.bottom_neg_3p5()` (not `top_neg_3p5()`) on the `base_container` in `render_entry`.
+- Keep the `deferred()` wrapping on both the editable and non-editable floating button containers.
+- If upstream refactors the edit-control overlay or the backdrop logic, ensure both the anchor position and the deferred painting relationship are preserved.
 
 ---
 
@@ -343,32 +347,18 @@ Upstream release-note fetching expects Zed's own backend/API. For fork releases,
 - it tries the channel-specific tag first and falls back to plain `v{version}`
 - it opens the fetched markdown in an in-app markdown preview buffer
 - if the fetch fails, it falls back to the existing error-notification flow
+- the version string has its pre-release and build metadata components stripped before use, so it matches the plain `v{major}.{minor}.{patch}` tag format used in GitHub releases (without stripping, semver pre/build suffixes caused the tag lookup to fail and release notes would not render)
+- `notify_release_notes_failed_to_show(...)` (the "open in browser" fallback shown when notes can't be displayed in-app) now constructs the URL from `ZED_UPDATE_REPO` and the current version tag, pointing to the fork's GitHub releases page instead of the upstream Zed changelog page
 
 ### Merge guidance
 If upstream changes release-note UI:
 - preserve the fork path that reads from GitHub release bodies when `ZED_UPDATE_REPO` points away from upstream
 - preserve fallback from channel-specific tags to plain `v{version}`
 - preserve local markdown preview rendering for fetched notes
+- preserve the pre/build metadata stripping on the version before tag construction, otherwise the tag lookup will silently fail
+- preserve the `notify_release_notes_failed_to_show` override that builds the fallback URL from `ZED_UPDATE_REPO` and the version tag, so the browser fallback links to the fork's releases page and not upstream's changelog
 
 If upstream adds a new generic abstraction for release-note providers, this fork behavior should move into that abstraction rather than being deleted.
-
----
-
-## 8. README changes
-
-### File
-- `README.md`
-
-### What changed
-The README was updated to:
-- rename the title to `Zed - Fork`
-- add a `Fork Changes` section summarizing the fork-specific differences
-
-### Why it was changed
-This makes the repository self-describing and helps future maintainers quickly identify intentional divergence from upstream.
-
-### Merge guidance
-If upstream rewrites the README, keep a short fork-specific section near the top or otherwise keep a clear pointer to `docs/src/fork-changes.md`.
 
 ---
 
@@ -391,6 +381,10 @@ When resolving future conflicts, check these points first:
   - `crates/ui/src/components/ai/thread_item.rs`
 - Do labels still use explicit truncation/clamping?
 - Do action buttons/counters still reserve layout space instead of covering text?
+
+### Floating edit-control buttons
+- Is the `base_container` still anchored with `.bottom_neg_3p5()` (not `top_neg_3p5()`) in `render_entry`?
+- Are both the editable and non-editable floating button containers still wrapped in `deferred()`?
 
 ### Releases / updater
 - Does `.github/workflows/sync_and_release.yml` still publish releases in the fork repo?
@@ -463,6 +457,6 @@ This fork intentionally diverges from upstream in five main ways:
 - a custom scrollbar style
 - explicit ellipsis-based truncation instead of gradient fades in several UI surfaces
 - a fully fork-owned release/update pipeline, including in-app release notes
-- a fix for floating edit-control buttons being painted over by the backdrop overlay when editing a message
+- repositioned the agent prompt floating edit controls button (also fixing paint-order so it renders above the backdrop overlay)
 
 When in doubt during merges, preserve upstream structure and bug fixes, but keep these fork-level product decisions intact unless there is an explicit decision to drop them.
