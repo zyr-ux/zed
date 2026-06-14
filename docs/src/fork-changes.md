@@ -94,7 +94,6 @@ In `crates/ui/src/components/scrollbar.rs`:
 
 ### Merge guidance
 If upstream changes scrollbar rendering:
-- preserve the fork's `Regular` scrollbar width of `8px`
 - preserve the edge-flush geometry for regular scrollbars
 - do not reintroduce fully rounded regular scrollbar thumbs
 - editor scrollbars should keep upstream behavior unless there is an intentional fork change
